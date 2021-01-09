@@ -6,5 +6,6 @@ ENV STATIC_URL /static
 ENV STATIC_PATH /app/static
 RUN mkdir /var/log/uwsgi
 RUN pip install --upgrade pip \
-    && pip install pandas pystan convertdate lunarcalendar holidays tqdm \
+    && pip install flask-wtf yfinance \
+    && pip install pystan convertdate lunarcalendar holidays tqdm \
     && pip install fbprophet
