@@ -29,17 +29,21 @@ def forecaster(ticker, periods):
 
     # Create a Prophet model
     # As there is one single closing price daily, disable the daily seasonality
-    m = Prophet(daily_seasonality=False)
+    model = Prophet(daily_seasonality=False)
 
     # m.add_country_holidays(country_name='AU')
-    m.fit(df)
+    model.fit(df)
 
-    future = m.make_future_dataframe(periods, freq='D')
+    future = model.make_future_dataframe(periods, freq='D')
 
-    forecast = m.predict(future)
+    forecast = model.predict(future)
 
-    m.plot_components(forecast)
-    m.plot(forecast)
+    fig_components = '/static/img/components_' + ticker +  '.png'
+    model.plot_components(forecast).savefig('../app' + fig_components)
 
-    return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(periods+1)
+    fig_forecast = '/static/img/forecast_' + ticker + '.png'
+    model.plot(forecast).savefig('../app' + fig_forecast)
+
+    forecast = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(periods+1)
     
+    return {'forecast': forecast, 'fig_components': fig_components, 'fig_forecast': fig_forecast} 
