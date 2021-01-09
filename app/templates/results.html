@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <title>Stock Predictor - Results</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <!-- Stylesheets -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1"
+      crossorigin="anonymous"
+    />
+
+    <!-- Scripts -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW"
+      crossorigin="anonymous"
+    ></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Stock Predictor - Results</h1>
+      <p>
+        Forecasting stock prices of <b>{{ ticker}}</b> for the next
+        <b>{{ days }}</b> days.
+      </p>
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">ds</th>
+            <th scope="col">yhat</th>
+            <th scope="col">yhat lower</th>
+            <th scope="col">yhat upper</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in forecast %}
+          <tr>
+            <th scope="row"></th>
+            <td>{{ row.ds }}</td>
+            <td>{{ row.yhat }}</td>
+            <td>{{ row.yhat_lower }}</td>
+            <td>{{ row.yhat_upper }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>
