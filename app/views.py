@@ -3,7 +3,8 @@ from app import app
 
 @app.route('/')
 def home():
-   return render_template('home.html')
+  form = TickerForm()
+  return render_template('home.html', form=form)
 
 @app.route('/template')
 def template():
