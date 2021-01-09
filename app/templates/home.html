@@ -1,14 +1,78 @@
 <!DOCTYPE html>
 
-<html lang="en-us">
+<html lang="en">
   <head>
+    <title>Stock Predictor</title>
     <meta charset="utf-8" />
-    <meta http-equiv="x-ua-compatible" content="ie=edge" />
-    <title>Welcome home</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <!-- Stylesheets -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1"
+      crossorigin="anonymous"
+    />
+
+    <!-- Scripts -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW"
+      crossorigin="anonymous"
+    ></script>
   </head>
 
   <body>
-    <h1>Home Page</h1>
-    <p>This is the home page of our application.</p>
+    <div class="container">
+      <h1>Stock Predictor</h1>
+      <p>Forecasting time series of stock prices.</p>
+      <form>
+        <div class="row g-3 align-items-center">
+          <div class="col-1">
+            <label for="ticker" class="form-label">Ticker/Quote</label>
+          </div>
+          <div class="col-3">
+            <input
+              type="text"
+              id="ticker"
+              class="form-control"
+              aria-describedby="tickerHelpInline"
+            />
+          </div>
+          <div class="col-8">
+            <span id="tickerHelpInline" class="form-text">
+              Must be a valid ticker/quote in a stock exchange. When in doubt
+              check
+              <a href="https://au.finance.yahoo.com/">Yahoo Finance</a>.
+            </span>
+          </div>
+
+          <div class="row g-2 align-items-center">
+            <div class="col-1">
+              <label for="days" class="form-label">Days</label>
+            </div>
+            <div class="col-3">
+              <input
+                type="text"
+                id="days"
+                class="form-control"
+                aria-describedby="daysHelpInline"
+              />
+            </div>
+            <div class="col-8">
+              <span id="daysHelpInline" class="form-text">
+                Desired number of days to forecast.
+              </span>
+            </div>
+          </div>
+
+          <div class="row g-2 align-items-center">
+            <div class="col-auto">
+              <button type="submit" class="btn btn-primary">Submit</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
   </body>
 </html>
