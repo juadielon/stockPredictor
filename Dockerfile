@@ -1,6 +1,10 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.8-alpine
-RUN apk --update add bash vim
+FROM tiangolo/uwsgi-nginx-flask:python3.8
+RUN apt update \
+    && apt upgrade -y \
+    && apt install vim -y
 ENV STATIC_URL /static
 ENV STATIC_PATH /app/static
+RUN mkdir /var/log/uwsgi
 RUN pip install --upgrade pip \
-    && pip install Flask==1.1.2
+    && pip install pandas pystan convertdate lunarcalendar holidays tqdm \
+    && pip install fbprophet
