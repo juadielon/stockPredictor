@@ -15,8 +15,8 @@ def ticker():
    if not form.validate_on_submit():
       return redirect('/')
 
-   forecast = forecaster(form.ticker.data, form.days.data)   
-   print(forecast)
-   forecast = forecast.itertuples()
+   forecast_info = forecaster(form.ticker.data, form.days.data)
+   print(forecast_info['forecast'])
+   forecast = forecast_info['forecast'].itertuples()
    
-   return render_template('results.html', ticker=form.ticker.data, days=form.days.data, forecast=forecast)
+   return render_template('results.html', ticker=form.ticker.data, days=form.days.data, forecast=forecast, fig_components=forecast_info['fig_components'], fig_forecast=forecast_info['fig_forecast'])
