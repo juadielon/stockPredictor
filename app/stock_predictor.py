@@ -36,16 +36,19 @@ def forecaster(ticker, periods):
 
     future = model.make_future_dataframe(periods, freq='D')
     # As the stock exchange is closed on weekends, remove weekends in the future
-    future = future[future['ds'].dt.dayofweek<5]
+    new_future = future[future['ds'].dt.dayofweek<5]
+    # As some days were removed, recalculate number of available periods to display
+    available_periods = periods - (len(future) - len(new_future))
+    forecast = model.predict(new_future)
 
-    forecast = model.predict(future)
-
+    # Save graphs 
     fig_components = '/static/img/components_' + ticker +  '.png'
     model.plot_components(forecast).savefig('../app' + fig_components)
 
     fig_forecast = '/static/img/forecast_' + ticker + '.png'
     model.plot(forecast).savefig('../app' + fig_forecast)
 
-    forecast = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(periods+1)
-    
+    # forecast = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
+    forecast = forecast.tail(available_periods+1)
+
     return {'forecast': forecast, 'fig_components': fig_components, 'fig_forecast': fig_forecast} 
