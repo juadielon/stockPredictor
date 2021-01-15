@@ -35,6 +35,8 @@ def forecaster(ticker, periods):
     model.fit(df)
 
     future = model.make_future_dataframe(periods, freq='D')
+    # As the stock exchange is closed on weekends, remove weekends in the future
+    future = future[future['ds'].dt.dayofweek<5]
 
     forecast = model.predict(future)
 
