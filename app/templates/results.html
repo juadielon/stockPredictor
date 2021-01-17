@@ -50,10 +50,59 @@
         </tbody>
       </table>
     </div>
-    <div>
-      <div class="container">
-          <div class="row"><img src="{{ fig_paths.price }}" class="img-fluid" alt="Price {{ ticker }}"/></div>
-          <div class="row"><img src="{{ fig_paths.forecast }}" class="img-fluid" alt="Forecast {{ ticker }}"/></div>
-          <div class="row"><img src="{{ fig_paths.components }}" class="img-fluid" alt="Components {{ ticker }}"/></div>
+
+    <div class="container">
+      <div class="row">
+        <img
+          src="{{ fig_paths.price }}"
+          class="img-fluid"
+          alt="Price {{ ticker }}"
+        />
+      </div>
+      <div class="row">
+        <img
+          src="{{ fig_paths.forecast }}"
+          class="img-fluid"
+          alt="Forecast {{ ticker }}"
+        />
+      </div>
+      <div class="row">
+        <img
+          src="{{ fig_paths.components }}"
+          class="img-fluid"
+          alt="Components {{ ticker }}"
+        />
+      </div>
+    </div>
+
+    <div class="container">
+      <h2>Performance</h2>
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th scope="col">horizon</th>
+            <th scope="col">mse</th>
+            <th scope="col">rmse</th>
+            <th scope="col">mae</th>
+            <th scope="col">mape</th>
+            <th scope="col">mdape</th>
+            <th scope="col">coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in performance %}
+          <tr>
+            <td>{{ (row.horizon|string)[:-9] }}</td>
+            <td>{{ row.mse|round(4) }}</td>
+            <td>{{ row.rmse|round(4) }}</td>
+            <td>{{ row.mae|round(4) }}</td>
+            <td>{{ row.mape|round(4) }}</td>
+            <td>{{ row.mdape|round(4) }}</td>
+            <td>{{ row.coverage|round(4) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </body>
 </html>

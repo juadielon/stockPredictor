@@ -2,6 +2,8 @@ import yfinance as yf
 import pandas as pd
 from matplotlib import pyplot as plt
 from fbprophet import Prophet
+from fbprophet.diagnostics import cross_validation, performance_metrics
+from fbprophet.plot import plot_cross_validation_metric
 from datetime import datetime
 
 
@@ -44,6 +46,12 @@ def forecaster(ticker, periods):
     available_periods = periods - (len(future) - len(new_future))
     forecast = model.predict(new_future)
 
+    # Diagnostics
+    horizon = str(periods) + ' days'
+    df_cv = cross_validation(model, horizon=horizon)
+    df_p = performance_metrics(df_cv)
+    print(df_p)
+
     # Save graphs
     fig_location = '/static/img/figures/'
     fig_paths = {
@@ -77,4 +85,4 @@ def forecaster(ticker, periods):
     # forecast = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
     forecast = forecast.tail(available_periods+1)
 
-    return {'forecast': forecast, 'fig_paths': fig_paths}
+    return {'forecast': forecast, 'performance': df_p, 'fig_paths': fig_paths}
