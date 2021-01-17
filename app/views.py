@@ -21,5 +21,6 @@ def ticker():
 
     print(forecast_info['forecast'])
     forecast = forecast_info['forecast'].itertuples()
+    performance = forecast_info['performance'].itertuples()
 
-    return render_template('results.html', ticker=form.ticker.data, days=form.days.data, forecast=forecast, fig_paths=forecast_info['fig_paths'])
+    return render_template('results.html', ticker=form.ticker.data, days=form.days.data, forecast=forecast, performance=performance, fig_paths=forecast_info['fig_paths'])
