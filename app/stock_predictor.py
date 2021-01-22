@@ -22,7 +22,7 @@ def forecaster(ticker, periods):
     forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
     fig_paths = make_graphs(ticker, forecast_info)
 
-    return {'forecast': forecast_info['forecast'], 'performance': diagnostics['df_performance'], 'fig_paths': fig_paths}
+    return {'stock_info': stock_info, 'forecast': forecast_info['forecast'], 'performance': diagnostics['df_performance'], 'fig_paths': fig_paths}
 
 
 def get_stock_info(ticker):
