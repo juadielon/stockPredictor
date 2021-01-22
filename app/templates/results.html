@@ -25,10 +25,94 @@
   <body>
     <div class="container">
       <h1>Stock Predictor - Results</h1>
+      <h2>{{ stock_info['longName'] }} - {{ stock_info['symbol']}}</h2>
+      <dl class="row">
+        <dt class="col-sm-1">Summary:</dt>
+        <dd class="col-sm-11">{{ stock_info['longBusinessSummary'] }}</dd>
+        <dt class="col-sm-1">Type:</dt>
+        <dd class="col-sm-11">{{ stock_info['legalType'] }}</dd>
+        <dt class="col-sm-1">Exchange:</dt>
+        <dd class="col-sm-11">{{ stock_info['exchange']}}</dd>
+        <dt class="col-sm-1">Currency</dt>
+        <dd class="col-sm-11">{{ stock_info['currency']}}</dd>
+      </dl>
+    </div>
+
+    <div class="container">
+      <div class="row">
+        <div class="col-9">
+          <table class="table table-striped table-hover caption-top">
+            <caption>
+              Most recent values
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Nav</th>
+                <th scope="col">Previous close</th>
+                <th scope="col">Open</th>
+                <th scope="col">Ask</th>
+                <th scope="col">Bid</th>
+                <th scope="col">Day low</th>
+                <th scope="col">Day high</th>
+                <th scope="col">Volume</th>
+                <th scope="col">Yield</th>
+                <!--
+            <th scope="col">Last dividend date</th>
+            <th scope="col">Last dividend</th>
+            -->
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td scope="col">{{ stock_info['navPrice'] }}</td>
+                <td scope="col">{{ stock_info['previousClose'] }}</td>
+                <td scope="col">{{ stock_info['open'] }}</td>
+                <td scope="col">{{ stock_info['ask'] }}</td>
+                <td scope="col">{{ stock_info['bid'] }}</td>
+                <td scope="col">{{ stock_info['dayLow'] }}</td>
+                <td scope="col">{{ stock_info['dayHigh'] }}</td>
+                <td scope="col">{{ stock_info['volume'] }}</td>
+                <td scope="col">{{ stock_info['yield'] }}</td>
+                <!--
+            <td scope="col">{{ stock_info['lastDividendDate'] }}</td>
+            <td scope="col">{{ stock_info['lastDividend'] }}</td>
+            -->
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="col-3">
+          <table class="table table-striped table-hover caption-top">
+            <caption>
+              Dividends
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for date, amount in dividends.items() %}
+              <tr>
+                <td>{{ date.strftime('%d/%m/%Y') }}</td>
+                <td>{{ amount }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <h2>Forecast</h2>
       <p>
-        Forecasting stock prices of <b>{{ ticker}}</b> for the next
+        Forecasting stock prices of <b>{{ ticker }}</b> for the next
         <b>{{ days }}</b> days.
       </p>
+
       <table class="table table-striped table-hover">
         <thead>
           <tr>
@@ -76,7 +160,7 @@
     </div>
 
     <div class="container">
-      <h2>Performance</h2>
+      <h2>Model diagnostics</h2>
       <table class="table table-striped table-hover">
         <thead>
           <tr>
