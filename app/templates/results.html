@@ -55,7 +55,12 @@
                 <th scope="col">Day low</th>
                 <th scope="col">Day high</th>
                 <th scope="col">Volume</th>
-                <th scope="col">Yield</th>
+                <th scope="col">
+                  <abbr
+                    title="Earnings/Price - cents of earning per dollar invested"
+                    >Yield</abbr
+                  >
+                </th>
                 <!--
             <th scope="col">Last dividend date</th>
             <th scope="col">Last dividend</th>
@@ -71,12 +76,12 @@
                 <td scope="col">{{ stock_info['bid'] }}</td>
                 <td scope="col">{{ stock_info['dayLow'] }}</td>
                 <td scope="col">{{ stock_info['dayHigh'] }}</td>
-                <td scope="col">{{ stock_info['volume'] }}</td>
-                <td scope="col">{{ stock_info['yield'] }}</td>
+                <td scope="col">{{ '{:,}'.format(stock_info['volume']) }}</td>
+                <td scope="col">{{ stock_info['yield'] * 100 }}%</td>
                 <!--
-            <td scope="col">{{ stock_info['lastDividendDate'] }}</td>
-            <td scope="col">{{ stock_info['lastDividend'] }}</td>
-            -->
+                <td scope="col">{{ stock_info['lastDividendDate'] }}</td>
+                <td scope="col">{{ stock_info['lastDividend'] }}</td>
+                -->
               </tr>
             </tbody>
           </table>
