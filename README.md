@@ -4,6 +4,8 @@ Time series analysis to predict future stock prices.
 
 ## How to run
 
+To install everything that is required, the first time you run it, make sure Docker has access to at least 2.5GB of memory
+
 To install and run the container simply do:
 
 ```
@@ -23,5 +25,21 @@ touch uwsgi.ini
 Alternatively, the docker container can be restarted with the following script:
 
 ```
-restart.sh
+./restart.sh
+```
+
+## Useful commands
+
+Access the docker container
+
+```
+docker exec -it stock_predictor bash
+```
+
+Restart nginx
+
+```
+service nginx reload
+or
+supervisorctl restart nginx
 ```
