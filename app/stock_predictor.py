@@ -145,4 +145,6 @@ def make_graphs(ticker, stock_data):
     plot_cross_validation_metric(stock_data['df_cross_validation'], metric='mape').savefig(
         '../app' + fig_paths['mape'])
 
+    plt.close('all')
+
     return fig_paths
