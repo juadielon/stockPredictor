@@ -4,6 +4,7 @@ RUN apt update \
     && apt install vim -y
 ENV STATIC_URL /static
 ENV STATIC_PATH /app/static
+RUN echo "uwsgi_read_timeout 300s;" > /etc/nginx/conf.d/uwsgi_timeout.conf
 RUN mkdir /var/log/uwsgi
 RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
