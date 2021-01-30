@@ -120,6 +120,11 @@ def make_graphs(ticker, stock_data):
 
     # Price
     fig_price = plt.figure(facecolor='w', figsize=(20, 6))
+    # plot significate changes in price
+    change_points = stock_data['model'].changepoints
+    for change in change_points:
+        plt.axvline(change, color="c", linestyle=":")
+
     plt.title(ticker + ' close price', fontsize=20)
     plt.ylabel('Price', fontsize=15)
     plt.plot(stock_data['historical_data']['ds'],
