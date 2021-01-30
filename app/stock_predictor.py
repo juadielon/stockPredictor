@@ -17,12 +17,18 @@ def forecaster(ticker, periods):
     """
 
     stock_info = get_stock_info(ticker)
-    forecast_info = make_forecast(stock_info['historical_data'], periods)
+
+    changepoint_prior_scale = find_best_changepoint_prior_scale(
+        stock_info['historical_data'], periods)
+    model_info = {'change_point_prior_scale': changepoint_prior_scale}
+
+    forecast_info = make_forecast(
+        stock_info['historical_data'], periods, changepoint_prior_scale)
     diagnostics = diagnose_model(periods, forecast_info['model'])
     forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
     fig_paths = make_graphs(ticker, forecast_info)
 
-    return {'stock_info': stock_info, 'forecast': forecast_info['forecast'], 'performance': diagnostics['df_performance'], 'fig_paths': fig_paths}
+    return {'stock_info': stock_info, 'forecast': forecast_info['forecast'], 'model_info': model_info, 'performance': diagnostics['df_performance'], 'fig_paths': fig_paths}
 
 
 def get_stock_info(ticker):
@@ -45,7 +51,26 @@ def get_stock_info(ticker):
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
-def make_forecast(historical_data, periods):
+def find_best_changepoint_prior_scale(historical_data, periods):
+    min_mape = 100
+    changepoint_prior_scale = 0
+    continue_loop = True
+    while continue_loop:
+        changepoint_prior_scale += 0.01
+        forecast_info = make_forecast(
+            historical_data, periods, changepoint_prior_scale)
+        diagnostics = diagnose_model(periods, forecast_info['model'])
+        mape = diagnostics['df_performance'].tail(1).mape.values
+        print('mape=', mape)
+        if mape < min_mape:
+            min_mape = mape
+        else:
+            continue_loop = False
+    print('min_mape=', min_mape)
+    return changepoint_prior_scale
+
+
+def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     """
     Forecast the price of the stock on a future number of days
     Inputs:
@@ -64,14 +89,17 @@ def make_forecast(historical_data, periods):
 
     # Create a Prophet model
     # As there is one single closing price daily, disable the daily seasonality
-    model = Prophet(daily_seasonality=False)
+    # model = Prophet(daily_seasonality=False)
+    model = Prophet(daily_seasonality=False,
+                    changepoint_prior_scale=changepoint_prior_scale)
 
-    # m.add_country_holidays(country_name='AU')
+    # model.add_country_holidays(country_name='AU')
     model.fit(df_historical_data)
 
     total_future = model.make_future_dataframe(periods, freq='D')
     # As the stock exchange is closed on weekends, remove weekends in the future
     future = total_future[total_future['ds'].dt.dayofweek < 5]
+
     # As some days were removed, recalculate number of available periods to display
     available_periods = periods - (len(total_future) - len(future))
     full_forecast = model.predict(future)
@@ -120,6 +148,7 @@ def make_graphs(ticker, stock_data):
 
     # Price
     fig_price = plt.figure(facecolor='w', figsize=(20, 6))
+
     # plot significate changes in price
     change_points = stock_data['model'].changepoints
     for change in change_points:
