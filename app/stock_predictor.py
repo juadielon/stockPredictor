@@ -19,17 +19,20 @@ def forecaster(ticker, periods):
 
     stock_info = get_stock_info(ticker)
 
-    changepoint_prior_scale = find_best_changepoint_prior_scale(
+    optimal_forecast = make_forecast_finding_best_changepoint_prior_scale(
         stock_info['historical_data'], periods)
-    model_info = {'change_point_prior_scale': changepoint_prior_scale}
+    fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
 
-    forecast_info = make_forecast(
-        stock_info['historical_data'], periods, changepoint_prior_scale)
-    diagnostics = diagnose_model(periods, forecast_info['model'])
-    forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
-    fig_paths = make_graphs(ticker, forecast_info)
+    # changepoint_prior_scale = 0.05
+    # forecast_info = make_forecast(
+    #     stock_info['historical_data'], periods, changepoint_prior_scale)
+    # forecast_info['change_point_prior_scale'] = changepoint_prior_scale
 
-    return {'stock_info': stock_info, 'forecast': forecast_info['forecast'], 'model_info': model_info, 'performance': diagnostics['df_performance'], 'fig_paths': fig_paths}
+    # diagnostics = diagnose_model(periods, forecast_info['model'])
+    # forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+    # fig_paths = make_graphs(ticker, forecast_info)
+
+    return {'stock_info': stock_info, 'params_info': optimal_forecast['forecast_info']['params_info'], 'forecast': optimal_forecast['forecast_info']['forecast'], 'performance': optimal_forecast['diagnostics']['df_performance'], 'fig_paths': fig_paths}
 
 
 def get_stock_info(ticker):
@@ -52,9 +55,9 @@ def get_stock_info(ticker):
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
-def find_best_changepoint_prior_scale(historical_data, periods):
+def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods):
     """
-    Find the best changepoint prior scale to use
+    Find the best changepoint prior scale to use and return the forecast
     According to the fphorpet manual, the changepoint prior scale is probably the most
     impactful parameter: "It determines the flexibility of the trend, and in particular
     how much the trend changes at the trend changepoints. If it is too small, the trend
@@ -65,6 +68,7 @@ def find_best_changepoint_prior_scale(historical_data, periods):
     a range of [0.001, 0.5] would likely be about right. Parameters like this
     (regularization penalties; this is effectively a lasso penalty) are often tuned on a
     log scale."
+
     Inputs:
     historical_data - is the historical stock data
     periods - is the number of days to forecast
@@ -72,22 +76,28 @@ def find_best_changepoint_prior_scale(historical_data, periods):
     min_mape = 100
     changepoint_prior_scale = 0
     continue_loop = True
+
     while continue_loop:
         changepoint_prior_scale += 0.01
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
         diagnostics = diagnose_model(periods, forecast_info['model'])
+        forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
         mape = diagnostics['df_performance'].tail(1).mape.values
         print('mape=', mape)
         print('temp changepoint_prior_scale=', changepoint_prior_scale)
         if mape < min_mape:
             min_mape = mape
+            result = {
+                'forecast_info': forecast_info,
+                'diagnostics': diagnostics,
+                'changepoint_prior_scale': round(changepoint_prior_scale, 2)
+            }
         else:
             continue_loop = False
-            changepoint_prior_scale -= 0.01
     print('min_mape=', min_mape)
-    print('best changepoint_prior_scale=', changepoint_prior_scale)
-    return round(changepoint_prior_scale, 2)
+    print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
+    return result
 
 
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
