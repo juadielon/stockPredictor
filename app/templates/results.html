@@ -120,8 +120,12 @@
 
       <h3>Parameters used</h3>
       <dl class="row">
-        <dt class="col-sm-2">Change point prior scale:</dt>
-        <dd class="col-sm-10">{{ model_info['change_point_prior_scale'] }}</dd>
+        <dt class="col-sm-2">Requested periods:</dt>
+        <dd class="col-sm-10">{{ params_info['requested_periods'] }}</dd>
+        <dt class="col-sm-2">Available periods:</dt>
+        <dd class="col-sm-10">{{ params_info['available_periods'] }}</dd>
+        <dt class="col-sm-2">Changepoint prior scale:</dt>
+        <dd class="col-sm-10">{{ params_info['changepoint_prior_scale'] }}</dd>
       </dl>
 
       <table class="table table-striped table-hover">

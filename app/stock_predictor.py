@@ -128,7 +128,13 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     # forecast = full_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
     forecast = full_forecast.tail(available_periods+1)
 
-    return {'historical_data': df_historical_data, 'full_forecast': full_forecast, 'forecast': forecast, 'model': model}
+    params_info = {
+        'requested_periods': periods,
+        'available_periods': available_periods,
+        'changepoint_prior_scale': changepoint_prior_scale,
+    }
+
+    return {'historical_data': df_historical_data, 'full_forecast': full_forecast, 'forecast': forecast, 'model': model, 'params_info': params_info}
     # return {'forecast': forecast, 'performance': df_p, 'fig_paths': fig_paths}
 
 
