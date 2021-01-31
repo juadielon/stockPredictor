@@ -52,6 +52,22 @@ def get_stock_info(ticker):
 
 
 def find_best_changepoint_prior_scale(historical_data, periods):
+    """
+    Find the best changepoint prior scale to use
+    According to the fphorpet manual, the changepoint prior scale is probably the most
+    impactful parameter: "It determines the flexibility of the trend, and in particular
+    how much the trend changes at the trend changepoints. If it is too small, the trend
+    will be underfit and variance that should have been modeled with trend changes will
+    instead end up being handled with the noise term. If it is too large, the trend will
+    overfit and in the most extreme case you can end up with the trend capturing yearly
+    seasonality. The default of 0.05 works for many time series, but this could be tuned;
+    a range of [0.001, 0.5] would likely be about right. Parameters like this
+    (regularization penalties; this is effectively a lasso penalty) are often tuned on a
+    log scale."
+    Inputs:
+    historical_data - is the historical stock data
+    periods - is the number of days to forecast
+    """
     min_mape = 100
     changepoint_prior_scale = 0
     continue_loop = True
@@ -62,12 +78,15 @@ def find_best_changepoint_prior_scale(historical_data, periods):
         diagnostics = diagnose_model(periods, forecast_info['model'])
         mape = diagnostics['df_performance'].tail(1).mape.values
         print('mape=', mape)
+        print('temp changepoint_prior_scale=', changepoint_prior_scale)
         if mape < min_mape:
             min_mape = mape
         else:
             continue_loop = False
+            changepoint_prior_scale -= 0.01
     print('min_mape=', min_mape)
-    return changepoint_prior_scale
+    print('best changepoint_prior_scale=', changepoint_prior_scale)
+    return round(changepoint_prior_scale, 2)
 
 
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
