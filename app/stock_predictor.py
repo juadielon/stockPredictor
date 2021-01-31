@@ -6,6 +6,7 @@ from fbprophet.diagnostics import cross_validation, performance_metrics
 from fbprophet.plot import plot_cross_validation_metric
 from fbprophet.plot import add_changepoints_to_plot
 from datetime import datetime
+import numpy as np
 
 
 def forecaster(ticker, periods):
@@ -178,36 +179,62 @@ def make_graphs(ticker, stock_data):
     fig_paths = {
         'price': fig_location + 'price_' + ticker + '.png',
         'components': fig_location + 'components_' + ticker + '.png',
-        'forecast': fig_location + 'forecast_' + ticker + '.png',
+        # 'forecast': fig_location + 'forecast_' + ticker + '.png',
         'mape': fig_location + 'mape_' + ticker + '.png'
     }
 
-    # Price
-    fig_price = plt.figure(facecolor='w', figsize=(20, 6))
+    date_now = datetime.now()
 
-    # plot significate changes in price
-    change_points = stock_data['model'].changepoints
-    for change in change_points:
-        plt.axvline(change, color="c", linestyle=":")
+    # Price & Forecast
+    fig_price = plt.figure(facecolor='w', figsize=(10, 6))
 
-    plt.title(ticker + ' close price', fontsize=20)
-    plt.ylabel('Price', fontsize=15)
+    plt.title(ticker + ' - close price & forecast', fontsize=10, pad=1)
+    plt.xlabel('Day (ds)', fontsize=10)
+    plt.ylabel('Price (y)', fontsize=10)
+
+    # plot changes in price and significate changes in price
+    for changepoint in stock_data['model'].changepoints:
+        plt.axvline(changepoint, color="lightsalmon", linestyle=":")
+
+    signif_changepoint_threshold = 0.01
+    signif_changepoints = stock_data['model'].changepoints[np.abs(np.nanmean(
+        stock_data['model'].params['delta'], axis=0)) >= signif_changepoint_threshold] if len(stock_data['model'].changepoints) > 0 else []
+    for signif_changepoint in signif_changepoints:
+        plt.axvline(signif_changepoint, color='r', linestyle=':')
+
+    # plot trend
+    plt.plot(stock_data['full_forecast']['ds'],
+             stock_data['full_forecast']['trend'], color='r')
+
+    # plot historical data
     plt.plot(stock_data['historical_data']['ds'],
-             stock_data['historical_data']['y'])
+             stock_data['historical_data']['y'], color='k', linewidth=1)
+
+    # plot forecast
+    plt.plot(stock_data['full_forecast']['ds'],
+             stock_data['full_forecast']['yhat'])
+    plt.fill_between(stock_data['full_forecast']['ds'], stock_data['full_forecast']
+                     ['yhat_lower'], stock_data['full_forecast']['yhat_upper'], color='#0072B2', alpha=0.2)
+
+    # plot today line
+    plt.axvline(date_now, color='k', linestyle=':')
+
+    # plot grid
+    plt.grid(True, which='major', color='gray',
+             linestyle='-', linewidth=1, alpha=0.2)
+
     fig_price.savefig('../app' + fig_paths['price'])
 
     # Forecast
-    # model.plot(forecast).savefig('../app' + fig_paths['forecast'])
-    fig_forecast = stock_data['model'].plot(stock_data['full_forecast'])
-    add_changepoints_to_plot(
-        fig_forecast.gca(), stock_data['model'], stock_data['full_forecast'])
+    # fig_forecast = stock_data['model'].plot(stock_data['full_forecast'])
+    # add_changepoints_to_plot(
+    #     fig_forecast.gca(), stock_data['model'], stock_data['full_forecast'])
     # plt.margins(x=0)
-    plt.title(ticker + ' forecast', fontsize=10, pad=1)
-    plt.xlabel('Day (ds)', fontsize=10)
-    plt.ylabel('Price (y)', fontsize=10)
-    date_now = datetime.now()
-    plt.axvline(date_now, color="k", linestyle=":")
-    fig_forecast.savefig('../app' + fig_paths['forecast'])
+    # plt.title(ticker + ' price forecast', fontsize=10, pad=1)
+    # plt.xlabel('Day (ds)', fontsize=10)
+    # plt.ylabel('Price (y)', fontsize=10)
+    # plt.axvline(date_now, color='k', linestyle=':')
+    # fig_forecast.savefig('../app' + fig_paths['forecast'])
 
     # Components
     stock_data['model'].plot_components(stock_data['full_forecast']).savefig(
