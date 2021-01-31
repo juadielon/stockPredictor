@@ -91,7 +91,7 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
             result = {
                 'forecast_info': forecast_info,
                 'diagnostics': diagnostics,
-                'changepoint_prior_scale': round(changepoint_prior_scale, 2)
+                'changepoint_prior_scale': changepoint_prior_scale
             }
         else:
             continue_loop = False
