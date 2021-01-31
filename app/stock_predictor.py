@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from fbprophet import Prophet
 from fbprophet.diagnostics import cross_validation, performance_metrics
 from fbprophet.plot import plot_cross_validation_metric
+from fbprophet.plot import add_changepoints_to_plot
 from datetime import datetime
 
 
@@ -182,6 +183,8 @@ def make_graphs(ticker, stock_data):
     # Forecast
     # model.plot(forecast).savefig('../app' + fig_paths['forecast'])
     fig_forecast = stock_data['model'].plot(stock_data['full_forecast'])
+    add_changepoints_to_plot(
+        fig_forecast.gca(), stock_data['model'], stock_data['full_forecast'])
     # plt.margins(x=0)
     plt.title(ticker + ' forecast', fontsize=10, pad=1)
     plt.xlabel('Day (ds)', fontsize=10)
