@@ -77,7 +77,11 @@
                 <td scope="col">{{ stock_info['dayLow'] }}</td>
                 <td scope="col">{{ stock_info['dayHigh'] }}</td>
                 <td scope="col">{{ '{:,}'.format(stock_info['volume']) }}</td>
-                <td scope="col">{{ (stock_info['yield'] * 100)|round(2) }}%</td>
+                <td scope="col">
+                  {% if stock_info['yield'] is number %}
+                    {{ (stock_info['yield']*100)|round(2) }}%
+                  {% endif %}
+                </td>
                 <!--
                 <td scope="col">{{ stock_info['lastDividendDate'] }}</td>
                 <td scope="col">{{ stock_info['lastDividend'] }}</td>
