@@ -33,7 +33,13 @@ def forecaster(ticker, periods):
     # forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
     # fig_paths = make_graphs(ticker, forecast_info)
 
-    return {'stock_info': stock_info, 'params_info': optimal_forecast['forecast_info']['params_info'], 'forecast': optimal_forecast['forecast_info']['forecast'], 'performance': optimal_forecast['diagnostics']['df_performance'], 'fig_paths': fig_paths}
+    return {
+        'stock_info': stock_info,
+        'params_info': optimal_forecast['forecast_info']['params_info'],
+        'forecast': optimal_forecast['forecast_info']['forecast'],
+        'performance': optimal_forecast['diagnostics']['df_performance'],
+        'fig_paths': fig_paths
+    }
 
 
 def get_stock_info(ticker):
@@ -47,6 +53,7 @@ def get_stock_info(ticker):
     stock_data = yf.Ticker(ticker)
 
     info = stock_data.info
+    # info = {'volume': 0}
     dividends = stock_data.dividends
 
     # Yahoo Finance allows to retrieve historical data for:
@@ -128,24 +135,33 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     model.fit(df_historical_data)
 
     total_future = model.make_future_dataframe(periods, freq='D')
-    # As the stock exchange is closed on weekends, remove weekends in the future
-    future = total_future[total_future['ds'].dt.dayofweek < 5]
 
+    # As the stock exchange is closed on weekends, remove weekends in the future
+    future_weekdays = total_future[total_future['ds'].dt.dayofweek < 5]
     # As some days were removed, recalculate number of available periods to display
-    available_periods = periods - (len(total_future) - len(future))
-    full_forecast = model.predict(future)
+    future_weekdays_count = periods - \
+        (len(total_future) - len(future_weekdays))
+
+    full_forecast = model.predict(future_weekdays)
 
     # Return requested period
     # forecast = full_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
-    forecast = full_forecast.tail(available_periods+1)
+    forecast = full_forecast.tail(future_weekdays_count+1)
 
     params_info = {
-        'requested_periods': periods,
-        'available_periods': available_periods,
+        'periods': periods,
+        'historical_periods': len(historical_data),
+        'weekday_periods': future_weekdays_count,
         'changepoint_prior_scale': changepoint_prior_scale,
     }
 
-    return {'historical_data': df_historical_data, 'full_forecast': full_forecast, 'forecast': forecast, 'model': model, 'params_info': params_info}
+    return {
+        'historical_data': df_historical_data,
+        'full_forecast': full_forecast,
+        'forecast': forecast,
+        'model': model,
+        'params_info': params_info
+    }
     # return {'forecast': forecast, 'performance': df_p, 'fig_paths': fig_paths}
 
 

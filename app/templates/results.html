@@ -124,10 +124,12 @@
 
       <h3>Parameters used</h3>
       <dl class="row">
-        <dt class="col-sm-2">Requested periods:</dt>
-        <dd class="col-sm-10">{{ params_info['requested_periods'] }}</dd>
-        <dt class="col-sm-2">Available periods:</dt>
-        <dd class="col-sm-10">{{ params_info['available_periods'] }}</dd>
+        <dt class="col-sm-2">Historical periods:</dt>
+        <dd class="col-sm-10">{{ '{:,}'.format(params_info['historical_periods']) }}</dd>
+        <dt class="col-sm-2">Estimated max periods:</dt>
+        <dd class="col-sm-10">{{ ((params_info['historical_periods'] * 0.36) + 1)|int }}</dd>
+        <dt class="col-sm-2">Weekday periods:</dt>
+        <dd class="col-sm-10">{{ params_info['weekday_periods'] }}</dd>
         <dt class="col-sm-2">Changepoint prior scale:</dt>
         <dd class="col-sm-10">{{ params_info['changepoint_prior_scale']|round(2) }}</dd>
       </dl>
