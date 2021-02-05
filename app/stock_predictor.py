@@ -20,6 +20,14 @@ def forecaster(ticker, periods):
 
     stock_info = get_stock_info(ticker)
 
+    # Make sure the new number of periods to use is not bigger than 36% of the historical periods
+    periods = int(periods)
+    historical_periods_count = len(stock_info['historical_data'])
+    # Estimate the number of maximum periods allowed. This was derived by trial and error
+    max_periods = int(historical_periods_count * 0.36) + 1
+    if periods > max_periods:
+        periods = max_periods
+
     optimal_forecast = make_forecast_finding_best_changepoint_prior_scale(
         stock_info['historical_data'], periods)
     fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
