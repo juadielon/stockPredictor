@@ -119,8 +119,11 @@
       <h2>Forecast</h2>
       <p>
         Forecasting stock prices of <b>{{ ticker }}</b> for the next
-        <b>{{ days }}</b> days.
+        <b>{{ params_info['periods'] }}</b> days.
       </p>
+      {% if days|int > params_info['periods'] %}
+      <p>{{ days }} days were requested but this is less than the estimated number of max periods.</p>
+      {% endif %}
 
       <h3>Parameters used</h3>
       <dl class="row">
