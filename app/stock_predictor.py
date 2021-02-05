@@ -116,6 +116,28 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
     return result
 
 
+def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods):
+    for changepoint_prior_scale in np.arange(0.01, 2, 0.01):
+        forecast_info = make_forecast(
+            historical_data, periods, changepoint_prior_scale)
+        diagnostics = diagnose_model(periods, forecast_info['model'])
+        forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+        mape = diagnostics['df_performance'].tail(1).mape.values
+        print('mape=', mape)
+        print('temp changepoint_prior_scale=', changepoint_prior_scale)
+        result = {
+            'forecast_info': forecast_info,
+            'diagnostics': diagnostics,
+            'changepoint_prior_scale': changepoint_prior_scale,
+            'mape': mape
+        }
+
+    min_mape = min(result, key=lambda x: x['mape'])
+    print(min_mape)
+    print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
+    return result
+
+
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     """
     Forecast the price of the stock on a future number of days
