@@ -8,6 +8,8 @@ from fbprophet.plot import add_changepoints_to_plot
 from datetime import datetime
 import numpy as np
 
+import time
+
 
 def forecaster(ticker, periods):
     """
@@ -123,14 +125,23 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
 
 
 def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods):
-    for changepoint_prior_scale in np.arange(0.01, 2, 0.01):
+    start = time.time()
+    # Test the model using 25% of historical data as the horizon
+    horizon_days = int(len(historical_data) * 0.25)
+
+    results = []
+
+    # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
+    for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
-        diagnostics = diagnose_model(periods, forecast_info['model'])
+        forecast_info['params_info']['horizon_days'] = horizon_days
+
+        diagnostics = diagnose_model(horizon_days, forecast_info['model'])
         forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
-        mape = diagnostics['df_performance'].tail(1).mape.values
-        print('mape=', mape)
-        print('temp changepoint_prior_scale=', changepoint_prior_scale)
+        mape = diagnostics['df_performance'].tail(1).mape.values[0]
+        print('evaluating changepoint_prior_scale=', changepoint_prior_scale)
+
         result = {
             'forecast_info': forecast_info,
             'diagnostics': diagnostics,
@@ -138,10 +149,22 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
             'mape': mape
         }
 
-    min_mape = min(result, key=lambda x: x['mape'])
-    print(min_mape)
-    print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
-    return result
+        results.append(result)
+
+        print(pd.DataFrame(results).reindex(
+            columns=['changepoint_prior_scale', 'mape']))
+
+        # Find the minimum mape in the results list
+        result_with_min_mape = min(results, key=lambda x: x['mape'])
+        print('min mape so far =', result_with_min_mape['mape'])
+        print('with changepoint_prior_scale=',
+              result_with_min_mape['changepoint_prior_scale'])
+        print('time=', time.time() - start)
+
+    print('best changepoint_prior_scale=',
+          result_with_min_mape['changepoint_prior_scale'])
+    print('min mape=', result_with_min_mape['mape'])
+    return result_with_min_mape
 
 
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
