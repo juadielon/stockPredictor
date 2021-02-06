@@ -92,14 +92,19 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
     min_mape = 100
     changepoint_prior_scale = 0
     continue_loop = True
+    # Test the model using 25% of historical data as the horizon
+    horizon_days = int(len(historical_data) * 0.25)
 
     while continue_loop:
         changepoint_prior_scale += 0.01
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
-        diagnostics = diagnose_model(periods, forecast_info['model'])
+        forecast_info['params_info']['horizon_days'] = horizon_days
+
+        diagnostics = diagnose_model(horizon_days, forecast_info['model'])
         forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
         mape = diagnostics['df_performance'].tail(1).mape.values
+
         print('mape=', mape)
         print('temp changepoint_prior_scale=', changepoint_prior_scale)
         if mape < min_mape:
@@ -111,6 +116,7 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
             }
         else:
             continue_loop = False
+
     print('min_mape=', min_mape)
     print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
     return result
@@ -195,16 +201,16 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     # return {'forecast': forecast, 'performance': df_p, 'fig_paths': fig_paths}
 
 
-def diagnose_model(periods, model):
+def diagnose_model(horizon_days, model):
     """
     Diagnose the model
 
     Inputs:
-    periods - is the number of forcasted days
+    horizon_days - is the number of days to use when testing the model
     model - is the Phropet model
     """
 
-    horizon = str(periods) + ' days'
+    horizon = str(horizon_days) + ' days'
     df_cross_validation = cross_validation(
         model, horizon=horizon, parallel='processes')
     df_performance = performance_metrics(df_cross_validation)
