@@ -129,10 +129,12 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     # Test the model using 25% of historical data as the horizon
     horizon_days = int(len(historical_data) * 0.25)
 
-    results = []
+    stats = []
+    result_min_mape = {'mape': 100}
 
     # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
     for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
+        # for changepoint_prior_scale in np.arange(0.38, 0.51, 0.01):
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
         forecast_info['params_info']['horizon_days'] = horizon_days
@@ -142,29 +144,31 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
         mape = diagnostics['df_performance'].tail(1).mape.values[0]
         print('evaluating changepoint_prior_scale=', changepoint_prior_scale)
 
-        result = {
-            'forecast_info': forecast_info,
-            'diagnostics': diagnostics,
+        stat = {
             'changepoint_prior_scale': changepoint_prior_scale,
             'mape': mape
         }
-
-        results.append(result)
-
-        print(pd.DataFrame(results).reindex(
+        stats.append(stat)
+        print(pd.DataFrame(stats).reindex(
             columns=['changepoint_prior_scale', 'mape']))
 
-        # Find the minimum mape in the results list
-        result_with_min_mape = min(results, key=lambda x: x['mape'])
-        print('min mape so far =', result_with_min_mape['mape'])
+        if mape < result_min_mape['mape']:
+            result_min_mape = {
+                'forecast_info': forecast_info,
+                'diagnostics': diagnostics,
+                'changepoint_prior_scale': changepoint_prior_scale,
+                'mape': mape
+            }
+
+        print('min mape so far =', result_min_mape['mape'])
         print('with changepoint_prior_scale=',
-              result_with_min_mape['changepoint_prior_scale'])
+              result_min_mape['changepoint_prior_scale'])
         print('time=', time.time() - start)
 
     print('best changepoint_prior_scale=',
-          result_with_min_mape['changepoint_prior_scale'])
-    print('min mape=', result_with_min_mape['mape'])
-    return result_with_min_mape
+          result_min_mape['changepoint_prior_scale'])
+    print('min mape=', result_min_mape['mape'])
+    return result_min_mape
 
 
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
