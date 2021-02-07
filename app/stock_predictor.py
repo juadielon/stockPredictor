@@ -7,8 +7,27 @@ from fbprophet.plot import plot_cross_validation_metric
 from fbprophet.plot import add_changepoints_to_plot
 from datetime import datetime
 import numpy as np
+from diskcache import FanoutCache
 
 import time
+
+cache = FanoutCache(directory='./tmp')
+# cache.clear()
+# Prime cache
+my_cache = [
+    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
+    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
+    {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
+    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
+    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
+    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}
+]
+expire = 60 * 60  # 1 hour
+for index in range(len(my_cache)):
+    cache.set(my_cache[index]['ticker'] + '_best_changepoint_prior_scale',
+              my_cache[index]['changepoint_prior_scale'], expire=expire)
 
 
 def forecaster(ticker, periods):
@@ -30,28 +49,49 @@ def forecaster(ticker, periods):
     if periods > max_periods:
         periods = max_periods
 
-    optimal_forecast = make_forecast_finding_best_changepoint_prior_scale(
-        stock_info['historical_data'], periods)
-    fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
+    cache_changepoint_prior_scale = ticker + '_best_changepoint_prior_scale'
+    if not cache_changepoint_prior_scale in cache:
+        print('No optimal changepoint_prior_scale was found in cache')
+        optimal_forecast = make_forecast_finding_best_changepoint_prior_scale2(
+            stock_info['historical_data'], periods)
+        # expire = 60 * 60 * 24 * 90 # 90 days
+        expire = 60 * 60  # 1 hour
+        cache.set(cache_changepoint_prior_scale,
+                  optimal_forecast['changepoint_prior_scale'], expire=expire)
+        fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
+        result = {
+            'stock_info': stock_info,
+            'params_info': optimal_forecast['forecast_info']['params_info'],
+            'forecast': optimal_forecast['forecast_info']['forecast'],
+            'performance': optimal_forecast['diagnostics']['df_performance'],
+            'fig_paths': fig_paths
+        }
+    else:
+        print('Using old changepoint_prior_scale found in cache')
+        changepoint_prior_scale = cache.get(cache_changepoint_prior_scale)
 
-    # changepoint_prior_scale = 0.05
-    # forecast_info = make_forecast(
-    #     stock_info['historical_data'], periods, changepoint_prior_scale)
-    # forecast_info['change_point_prior_scale'] = changepoint_prior_scale
+        # Test the model using 25% of historical data as the horizon
+        horizon_days = int(len(stock_info['historical_data']) * 0.25)
 
-    # diagnostics = diagnose_model(periods, forecast_info['model'])
-    # forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
-    # fig_paths = make_graphs(ticker, forecast_info)
+        forecast_info = make_forecast(
+            stock_info['historical_data'], periods, changepoint_prior_scale)
+        forecast_info['change_point_prior_scale'] = changepoint_prior_scale
+        forecast_info['params_info']['horizon_days'] = horizon_days
 
-    return {
-        'stock_info': stock_info,
-        'params_info': optimal_forecast['forecast_info']['params_info'],
-        'forecast': optimal_forecast['forecast_info']['forecast'],
-        'performance': optimal_forecast['diagnostics']['df_performance'],
-        'fig_paths': fig_paths
-    }
+        diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+        forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+        fig_paths = make_graphs(ticker, forecast_info)
+        result = {
+            'stock_info': stock_info,
+            'params_info': forecast_info['params_info'],
+            'forecast': forecast_info['forecast'],
+            'performance': diagnostics['df_performance'],
+            'fig_paths': fig_paths
+        }
+    return result
 
 
+@cache.memoize(typed=True, expire=14400, tag='stock_info')
 def get_stock_info(ticker):
     """
     Retrieves stock's information from Yahoo Finance
@@ -69,7 +109,7 @@ def get_stock_info(ticker):
     # Yahoo Finance allows to retrieve historical data for:
     # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
     historical_data = stock_data.history('max', auto_adjust=True)
-
+    print('Retrieved data from Yahoo Finance')
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
@@ -133,8 +173,8 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     result_min_mape = {'mape': 100}
 
     # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
-    for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
-        # for changepoint_prior_scale in np.arange(0.38, 0.51, 0.01):
+    # for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
+    for changepoint_prior_scale in np.arange(0.01, 0.02, 0.01):
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
         forecast_info['params_info']['horizon_days'] = horizon_days
