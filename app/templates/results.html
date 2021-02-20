@@ -136,52 +136,44 @@
         <dt class="col-sm-2">Changepoint prior scale:</dt>
         <dd class="col-sm-10">{{ params_info['changepoint_prior_scale']|round(2) }}</dd>
       </dl>
-
-      <table class="table table-striped table-hover">
-        <thead>
-          <tr>
-            <th scope="col">Date (ds)</th>
-            <th scope="col">Predicted price (yhat)</th>
-            <th scope="col">yhat lower</th>
-            <th scope="col">yhat upper</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in forecast %}
-          <tr>
-            <td>{{ row.ds.strftime('%d/%m/%Y') }}</td>
-            <td>{{ row.yhat|round(4) }}</td>
-            <td>{{ row.yhat_lower|round(4) }}</td>
-            <td>{{ row.yhat_upper|round(4) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
     </div>
 
     <div class="container">
       <div class="row">
-        <img
-          src="{{ fig_paths.price }}"
-          class="img-fluid"
-          alt="Price {{ ticker }}"
-        />
+        <img src="{{ fig_paths.price }}" class="img-fluid" alt="Price {{ ticker }}" />
       </div>
       <!--
       <div class="row">
-        <img
-          src="{{ fig_paths.forecast }}"
-          class="img-fluid"
-          alt="Forecast {{ ticker }}"
-        />
+        <img src="{{ fig_paths.forecast }}" class="img-fluid" alt="Forecast {{ ticker }}" />
       </div>
       -->
       <div class="row">
-        <img
-          src="{{ fig_paths.components }}"
-          class="img-fluid"
-          alt="Components {{ ticker }}"
-        />
+        <img src="{{ fig_paths.components }}" class="img-fluid" alt="Components {{ ticker }}" />
+      </div>
+    </div>
+  
+    <div class="container">
+      <div class="row">
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th scope="col">Date (ds)</th>
+              <th scope="col">Predicted price (yhat)</th>
+              <th scope="col">yhat lower</th>
+              <th scope="col">yhat upper</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in forecast %}
+            <tr>
+              <td>{{ row.ds.strftime('%d/%m/%Y') }}</td>
+              <td>{{ row.yhat|round(4) }}</td>
+              <td>{{ row.yhat_lower|round(4) }}</td>
+              <td>{{ row.yhat_upper|round(4) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -221,11 +213,7 @@
     </div>
     <div class="container">
       <div class="row">
-        <img
-          src="{{ fig_paths.mape }}"
-          class="img-fluid"
-          alt="mape {{ ticker }}"
-        />
+        <img src="{{ fig_paths.mape }}" class="img-fluid" alt="mape {{ ticker }}" />
       </div>
     </div>
   </body>
