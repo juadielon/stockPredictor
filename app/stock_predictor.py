@@ -8,26 +8,41 @@ from fbprophet.plot import add_changepoints_to_plot
 from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
+# from diskcache import Cache
+import hashlib
 
 import time
 
-cache = FanoutCache(directory='./tmp')
+cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
+# cache = FanoutCache(directory='./tmp', timeout=20, eviction_policy='none')
+# cache = Cache(directory='./tmp')
 # cache.clear()
 # Prime cache
-my_cache = [
-    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
-    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
+
+"""my_cache = [
+    {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.07},
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
+    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.5},
+    # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
+    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.03},
     {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'espo', 'changepoint_prior_scale': 0.34},
     {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
+    {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01},
     {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
-    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
-    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}
+    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01},
+    # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
+    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.18},
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.14},
+    {'ticker': 'rbtz.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.5}
 ]
 expire = 60 * 60  # 1 hour
 for index in range(len(my_cache)):
     cache.set(my_cache[index]['ticker'] + '_best_changepoint_prior_scale',
               my_cache[index]['changepoint_prior_scale'], expire=expire)
+"""
 
 
 def forecaster(ticker, periods):
@@ -93,7 +108,7 @@ def forecaster(ticker, periods):
     return result
 
 
-@cache.memoize(typed=True, expire=14400, tag='stock_info')
+@cache.memoize(typed=True, expire=43200)  # cache for 12 hours
 def get_stock_info(ticker):
     """
     Retrieves stock's information from Yahoo Finance
@@ -101,6 +116,9 @@ def get_stock_info(ticker):
     Inputs:
     ticker - is the ticker/quote of the stock as defined by Yahoo Finance
     """
+
+    print('Retrieving data from Yahoo Finance')
+
     # Get historical data from Yahoo Finance
     stock_data = yf.Ticker(ticker)
 
@@ -111,7 +129,7 @@ def get_stock_info(ticker):
     # Yahoo Finance allows to retrieve historical data for:
     # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
     historical_data = stock_data.history('max', auto_adjust=True)
-    print('Retrieved data from Yahoo Finance')
+
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
@@ -175,8 +193,8 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     result_min_mape = {'mape': 100}
 
     # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
-    # for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
-    for changepoint_prior_scale in np.arange(0.01, 0.02, 0.01):
+    for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
+        # for changepoint_prior_scale in np.arange(0.01, 0.02, 0.01):
         forecast_info = make_forecast(
             historical_data, periods, changepoint_prior_scale)
         forecast_info['params_info']['horizon_days'] = horizon_days
@@ -184,7 +202,7 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
         diagnostics = diagnose_model(horizon_days, forecast_info['model'])
         forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
         mape = diagnostics['df_performance'].tail(1).mape.values[0]
-        print('evaluating changepoint_prior_scale=', changepoint_prior_scale)
+        print('Evaluating changepoint_prior_scale=', changepoint_prior_scale)
 
         stat = {
             'changepoint_prior_scale': changepoint_prior_scale,
@@ -213,6 +231,7 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     return result_min_mape
 
 
+# @cache.memoize(expire=14400)  # Cache for 4 hours
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     """
     Forecast the price of the stock on a future number of days
@@ -220,6 +239,19 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     historical_data - is the historical stock data
     periods - is the number of days to forecast
     """
+    key = 'make_forecast' + \
+        hashlib.md5(str(historical_data).encode()).hexdigest() + \
+        str(changepoint_prior_scale)
+    print('key=', key)
+
+    if key in cache:
+        print('Forecast found in cache for changepoint_prior_scale = ',
+              changepoint_prior_scale)
+        return cache.get(key)
+
+    print('Forecast not found in cache. Making forecast with changepoint_prior_scale = ',
+          changepoint_prior_scale)
+
     periods = int(periods)
 
     # Prophet requires the dates (ds) and adjusted closing prices (y)
@@ -253,23 +285,25 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     # forecast = full_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
     forecast = full_forecast.tail(future_weekdays_count+1)
 
-    params_info = {
-        'periods': periods,
-        'historical_periods': len(historical_data),
-        'weekday_periods': future_weekdays_count,
-        'changepoint_prior_scale': changepoint_prior_scale,
-    }
-
-    return {
+    result = {
         'historical_data': df_historical_data,
         'full_forecast': full_forecast,
         'forecast': forecast,
         'model': model,
-        'params_info': params_info
+        'params_info': {
+            'periods': periods,
+            'historical_periods': len(historical_data),
+            'weekday_periods': future_weekdays_count,
+            'changepoint_prior_scale': changepoint_prior_scale,
+        }
     }
-    # return {'forecast': forecast, 'performance': df_p, 'fig_paths': fig_paths}
+
+    cache.set(key, result, expire=14400)
+
+    return result
 
 
+# @cache.memoize(expire=14400)  # Not sure why memoize doesn't work @todo set diagnose_model.__cache_key__ =
 def diagnose_model(horizon_days, model):
     """
     Diagnose the model
@@ -280,10 +314,24 @@ def diagnose_model(horizon_days, model):
     """
 
     horizon = str(horizon_days) + ' days'
-    df_cross_validation = cross_validation(
-        model, horizon=horizon, parallel='processes')
+    key = 'df_cross_validation' + horizon + hashlib.md5(str(model.history).encode()).hexdigest() + \
+        str(model.changepoint_prior_scale)
+    print('key=', key)
+
+    if not key in cache:
+        print('df_cross_validation not found in cache for change_point_prior_scale ' +
+              str(model.changepoint_prior_scale) + '. Performing cross validation')
+        df_cross_validation = cross_validation(
+            model, horizon=horizon, parallel='processes')
+        cache.set(key, df_cross_validation, expire=14400)
+    else:
+        print('Previous df_cross_validation found in cache for change_point_prior_scale ' +
+              str(model.changepoint_prior_scale))
+        df_cross_validation = cache.get(key)
+
     df_performance = performance_metrics(df_cross_validation)
-    print(df_performance)
+    # print(df_performance)
+
     return {'df_cross_validation': df_cross_validation, 'df_performance': df_performance}
 
 
