@@ -2,7 +2,7 @@
 
 <html lang="en">
   <head>
-    <title>Stock Predictor - Results</title>
+    <title>Stock Predictor - {{ stock_info['symbol']}} - Results</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
 
@@ -43,7 +43,7 @@
         <div class="col-9">
           <table class="table table-striped table-hover caption-top">
             <caption>
-              Most recent values
+              Most recent values as of {{ now.strftime('%d/%m/%Y %I:%M:%S %p') }}
             </caption>
             <thead>
               <tr>

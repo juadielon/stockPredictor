@@ -40,6 +40,8 @@ def forecaster(ticker, periods):
     """
 
     stock_info = get_stock_info(ticker)
+    stock_info['now'] = datetime.now()
+    print(datetime.now())
 
     # Make sure the new number of periods to use is not bigger than 36% of the historical periods
     periods = int(periods)
