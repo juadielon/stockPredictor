@@ -9,7 +9,6 @@ from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
 # from diskcache import Cache
-import hashlib
 
 import time
 
@@ -231,7 +230,6 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     return result_min_mape
 
 
-# @cache.memoize(expire=14400)  # Cache for 4 hours
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     """
     Forecast the price of the stock on a future number of days
@@ -239,18 +237,6 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     historical_data - is the historical stock data
     periods - is the number of days to forecast
     """
-    key = 'make_forecast' + \
-        hashlib.md5(str(historical_data).encode()).hexdigest() + \
-        str(changepoint_prior_scale)
-    print('key=', key)
-
-    if key in cache:
-        print('Forecast found in cache for changepoint_prior_scale = ',
-              changepoint_prior_scale)
-        return cache.get(key)
-
-    print('Forecast not found in cache. Making forecast with changepoint_prior_scale = ',
-          changepoint_prior_scale)
 
     periods = int(periods)
 
@@ -298,12 +284,8 @@ def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
         }
     }
 
-    cache.set(key, result, expire=14400)
-
     return result
 
-
-# @cache.memoize(expire=14400)  # Not sure why memoize doesn't work @todo set diagnose_model.__cache_key__ =
 def diagnose_model(horizon_days, model):
     """
     Diagnose the model
@@ -314,20 +296,8 @@ def diagnose_model(horizon_days, model):
     """
 
     horizon = str(horizon_days) + ' days'
-    key = 'df_cross_validation' + horizon + hashlib.md5(str(model.history).encode()).hexdigest() + \
-        str(model.changepoint_prior_scale)
-    print('key=', key)
 
-    if not key in cache:
-        print('df_cross_validation not found in cache for change_point_prior_scale ' +
-              str(model.changepoint_prior_scale) + '. Performing cross validation')
-        df_cross_validation = cross_validation(
-            model, horizon=horizon, parallel='processes')
-        cache.set(key, df_cross_validation, expire=14400)
-    else:
-        print('Previous df_cross_validation found in cache for change_point_prior_scale ' +
-              str(model.changepoint_prior_scale))
-        df_cross_validation = cache.get(key)
+    df_cross_validation = cross_validation(model, horizon=horizon, parallel='processes')
 
     df_performance = performance_metrics(df_cross_validation)
     # print(df_performance)
