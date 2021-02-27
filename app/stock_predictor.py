@@ -11,6 +11,7 @@ from diskcache import FanoutCache
 # from diskcache import Cache
 
 import time
+import math
 
 cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
 # cache = FanoutCache(directory='./tmp', timeout=20, eviction_policy='none')
@@ -18,30 +19,39 @@ cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
 # cache.clear()
 # Prime cache
 
-"""my_cache = [
+my_cache = [
     {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.07},
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
-    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.5},
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.50},
+    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.05},
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
-    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.03},
+    # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.03},
+    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.49},
     {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'espo', 'changepoint_prior_scale': 0.34},
-    {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.34},
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.17},
+    {'ticker': 'espo', 'changepoint_prior_scale': 0.173274},
+    # {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
+    {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.014904},
     {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.009593},
     {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
-    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.18},
+    # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.18},
+    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.171128},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.14},
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.14},
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.10},
+    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.135506},
     {'ticker': 'rbtz.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.5}
+    {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.50}
 ]
-expire = 60 * 60  # 1 hour
+expire = 60 * 60 * 12 # 12 hours
 for index in range(len(my_cache)):
     cache.set(my_cache[index]['ticker'] + '_best_changepoint_prior_scale',
               my_cache[index]['changepoint_prior_scale'], expire=expire)
-"""
 
 
 def forecaster(ticker, periods):
@@ -68,10 +78,9 @@ def forecaster(ticker, periods):
     cache_changepoint_prior_scale = ticker + '_best_changepoint_prior_scale'
     if not cache_changepoint_prior_scale in cache:
         print('No optimal changepoint_prior_scale was found in cache')
-        optimal_forecast = make_forecast_finding_best_changepoint_prior_scale2(
+        optimal_forecast = make_forecast_finding_best_changepoint_prior_scale3(
             stock_info['historical_data'], periods)
-        # expire = 60 * 60 * 24 * 90 # 90 days
-        expire = 60 * 60  # 1 hour
+        expire = 60 * 60  * 12 # 12 hours
         cache.set(cache_changepoint_prior_scale,
                   optimal_forecast['changepoint_prior_scale'], expire=expire)
         fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
@@ -133,9 +142,9 @@ def get_stock_info(ticker):
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
-def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods):
+def make_forecast_finding_best_changepoint_prior_scale1(historical_data, periods):
     """
-    Find the best changepoint prior scale to use and return the forecast
+    Find the best changepoint prior scale to use, returning the forecast.
     According to the fphorpet manual, the changepoint prior scale is probably the most
     impactful parameter: "It determines the flexibility of the trend, and in particular
     how much the trend changes at the trend changepoints. If it is too small, the trend
@@ -147,10 +156,16 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
     (regularization penalties; this is effectively a lasso penalty) are often tuned on a
     log scale."
 
+    This method starts with a change point prior scale of 0.01, evaluating the Mean
+    Absolute Percent Error (MAPE) and continuing with the next change point until the MAPE
+    starts to increase. This method choose the first minimum value and not necesarily the
+    absolute minimum value.
+
     Inputs:
     historical_data - is the historical stock data
     periods - is the number of days to forecast
     """
+
     min_mape = 100
     changepoint_prior_scale = 0
     continue_loop = True
@@ -185,6 +200,29 @@ def make_forecast_finding_best_changepoint_prior_scale(historical_data, periods)
 
 
 def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods):
+    """
+    Find the best changepoint prior scale to use, returning the forecast.
+    According to the fphorpet manual, the changepoint prior scale is probably the most
+    impactful parameter: "It determines the flexibility of the trend, and in particular
+    how much the trend changes at the trend changepoints. If it is too small, the trend
+    will be underfit and variance that should have been modeled with trend changes will
+    instead end up being handled with the noise term. If it is too large, the trend will
+    overfit and in the most extreme case you can end up with the trend capturing yearly
+    seasonality. The default of 0.05 works for many time series, but this could be tuned;
+    a range of [0.001, 0.5] would likely be about right. Parameters like this
+    (regularization penalties; this is effectively a lasso penalty) are often tuned on a
+    log scale."
+
+    This method evaluates all point prior scale from 0.01 until 0.5 with a 0.01 step,
+    choosing the value producing the minimum Mean Absolute Percent Error (MAPE). As it
+    evaluates every sinlge point it finds the absolute minimum in the range evaluated
+    at the cost of speed.
+
+    Inputs:
+    historical_data - is the historical stock data
+    periods - is the number of days to forecast
+    """
+
     start = time.time()
     # Test the model using 25% of historical data as the horizon
     horizon_days = int(len(historical_data) * 0.25)
@@ -230,6 +268,281 @@ def make_forecast_finding_best_changepoint_prior_scale2(historical_data, periods
     print('min mape=', result_min_mape['mape'])
     return result_min_mape
 
+def make_forecast_finding_best_changepoint_prior_scale3(historical_data, periods):
+    """
+    Find the best changepoint prior scale to use, returning the forecast.
+    According to the fphorpet manual, the changepoint prior scale is probably the most
+    impactful parameter: "It determines the flexibility of the trend, and in particular
+    how much the trend changes at the trend changepoints. If it is too small, the trend
+    will be underfit and variance that should have been modeled with trend changes will
+    instead end up being handled with the noise term. If it is too large, the trend will
+    overfit and in the most extreme case you can end up with the trend capturing yearly
+    seasonality. The default of 0.05 works for many time series, but this could be tuned;
+    a range of [0.001, 0.5] would likely be about right. Parameters like this
+    (regularization penalties; this is effectively a lasso penalty) are often tuned on a
+    log scale."
+
+    This method use a ternary search to find the a change point prior scale value that
+    produces a minimum Mean Absolute Percent Error (MAPE). As the evaluated function is
+    not necessarily and unimodal function, the minimum value found might not be necesarily
+    be the minimum value.
+
+    With some modifications this method can also use the golden section search algorithm
+
+    Inputs:
+    historical_data - is the historical stock data
+    periods - is the number of days to forecast
+
+    @todo refactor the method to remove double code
+    """
+    start = time.time()
+    # Test the model using 25% of historical data as the horizon
+    horizon_days = int(len(historical_data) * 0.25)
+
+    stats = []
+
+    left_cps = 0.001 # left changepoint prior scale
+    right_cps = 0.5 # right changepoint prior scale
+    precision = 0.01
+
+    golden_ratio = (math.sqrt(5) +1) / 2
+
+    while abs(right_cps - left_cps) >= precision:
+        # left_cps_third = left_cps + (right_cps - left_cps) / 3
+        # right_cps_third = right_cps - (right_cps - left_cps) / 3
+        left_cps_third = right_cps - (right_cps - left_cps) / golden_ratio
+        right_cps_third = left_cps + (right_cps - left_cps) / golden_ratio
+
+        print('evaluating left ', left_cps_third)
+
+        forecast_info = make_forecast(historical_data, periods, left_cps_third)
+        forecast_info['params_info']['horizon_days'] = horizon_days
+
+        diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+        forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+        left_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+        stat = {
+            'changepoint_prior_scale': left_cps_third,
+            'mape': left_mape
+        }
+        stats.append(stat)
+        print(pd.DataFrame(stats).reindex(
+            columns=['changepoint_prior_scale', 'mape']))
+
+        print('evaluating right ', right_cps_third)
+        forecast_info = make_forecast(historical_data, periods, right_cps_third)
+        forecast_info['params_info']['horizon_days'] = horizon_days
+
+        diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+        forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+        right_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+        stat = {
+            'changepoint_prior_scale': right_cps_third,
+            'mape': right_mape
+        }
+        stats.append(stat)
+        print(pd.DataFrame(stats).reindex(
+            columns=['changepoint_prior_scale', 'mape']))
+
+        if left_mape > right_mape:
+            left_cps = left_cps_third
+        else:
+            right_cps = right_cps_third
+
+        print('time=', time.time() - start)
+
+    best_changepoint_prior_scale = (left_cps + right_cps) / 2
+    print('evaluating best ', best_changepoint_prior_scale)
+    forecast_info = make_forecast(historical_data, periods, best_changepoint_prior_scale)
+    forecast_info['params_info']['horizon_days'] = horizon_days
+
+    diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+    forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+    mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+    stat = {
+        'changepoint_prior_scale': best_changepoint_prior_scale,
+        'mape': mape
+    }
+    stats.append(stat)
+    print(pd.DataFrame(stats).reindex(
+        columns=['changepoint_prior_scale', 'mape']))
+    print('time=', time.time() - start)
+
+    result_min_mape = {
+        'forecast_info': forecast_info,
+        'diagnostics': diagnostics,
+        'changepoint_prior_scale': best_changepoint_prior_scale,
+        'mape': mape
+    }
+
+    return result_min_mape
+
+def make_forecast_finding_best_changepoint_prior_scale4(historical_data, periods):
+    """
+    Find the best changepoint prior scale to use, returning the forecast.
+    According to the fphorpet manual, the changepoint prior scale is probably the most
+    impactful parameter: "It determines the flexibility of the trend, and in particular
+    how much the trend changes at the trend changepoints. If it is too small, the trend
+    will be underfit and variance that should have been modeled with trend changes will
+    instead end up being handled with the noise term. If it is too large, the trend will
+    overfit and in the most extreme case you can end up with the trend capturing yearly
+    seasonality. The default of 0.05 works for many time series, but this could be tuned;
+    a range of [0.001, 0.5] would likely be about right. Parameters like this
+    (regularization penalties; this is effectively a lasso penalty) are often tuned on a
+    log scale."
+
+    Similarly to the third method above, this method uses the a Golden section search
+    algorithm to find the a change point prior scale value that produces a minimum Mean
+    Absolute Percent Error (MAPE). As the evaluated function is not necessarily and unimodal
+    function, the minimum value found might not be necesarily the minimum value. The
+    difference with the third method above is that this method reuses function evaluations,
+    saving evaluations per iteration, saving time in the process.
+
+    Inputs:
+    historical_data - is the historical stock data
+    periods - is the number of days to forecast
+
+    @todo refactor the method to remove double code
+    """
+
+    start = time.time()
+    # Test the model using 25% of historical data as the horizon
+    horizon_days = int(len(historical_data) * 0.25)
+
+    stats = []
+    #result_min_mape = {'mape': 100}
+
+    left_cps = 0.001 # left changepoint prior scale
+    right_cps = 0.5 # right changepoint prior scale
+    precision = 0.01
+
+    # based on golden ratio (math.sqrt(5) +1) / 2
+    inv_phi = (math.sqrt(5)-1) / 2 # 1 / phi
+    inv_phi2 = (3 - math.sqrt(5)) / 2 # 1 / phi^2
+
+    distance = right_cps - left_cps
+    max_steps = int(math.ceil(math.log(precision/distance) / math.log(inv_phi)))
+
+    left_cps_tmp = left_cps + inv_phi2 * distance
+    right_cps_tmp = left_cps + inv_phi * distance
+
+    print('evaluating left ', left_cps_tmp)
+    forecast_info = make_forecast(historical_data, periods, left_cps_tmp)
+    forecast_info['params_info']['horizon_days'] = horizon_days
+
+    diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+    forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+    left_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+    stat = {
+        'changepoint_prior_scale': left_cps_tmp,
+        'mape': left_mape
+    }
+    stats.append(stat)
+    print(pd.DataFrame(stats).reindex(
+        columns=['changepoint_prior_scale', 'mape']))
+
+    print('evaluating right ', right_cps_tmp)
+    forecast_info = make_forecast(historical_data, periods, right_cps_tmp)
+    forecast_info['params_info']['horizon_days'] = horizon_days
+
+    diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+    forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+    right_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+    stat = {
+        'changepoint_prior_scale': right_cps_tmp,
+        'mape': right_mape
+    }
+    stats.append(stat)
+    print(pd.DataFrame(stats).reindex(
+        columns=['changepoint_prior_scale', 'mape']))
+
+    for i in range(max_steps):
+        if left_mape < right_mape:
+            right_cps = right_cps_tmp
+            right_cps_tmp = left_cps_tmp
+            right_mape = left_mape
+            distance = inv_phi * distance
+            left_cps_tmp = left_cps + inv_phi2 * distance
+
+            print('evaluating left ', left_cps_tmp)
+            forecast_info = make_forecast(historical_data, periods, left_cps_tmp)
+            forecast_info['params_info']['horizon_days'] = horizon_days
+
+            diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+            forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+            left_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+            stat = {
+                'changepoint_prior_scale': left_cps_tmp,
+                'mape': left_mape
+            }
+            stats.append(stat)
+            print(pd.DataFrame(stats).reindex(
+                columns=['changepoint_prior_scale', 'mape']))
+            print('time=', time.time() - start)
+        else:
+            left_cps = left_cps_tmp
+            left_cps_tmp = right_cps_tmp
+            left_mape = right_mape
+            distance = inv_phi * distance
+            right_cps_tmp = left_cps + inv_phi * distance
+
+            print('evaluating right ', right_cps_tmp)
+            forecast_info = make_forecast(historical_data, periods, right_cps_tmp)
+            forecast_info['params_info']['horizon_days'] = horizon_days
+
+            diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+            forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+            right_mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+            stat = {
+                'changepoint_prior_scale': right_cps_tmp,
+                'mape': right_mape
+            }
+            stats.append(stat)
+            print(pd.DataFrame(stats).reindex(
+                columns=['changepoint_prior_scale', 'mape']))
+            print('time=', time.time() - start)
+
+    if left_mape < right_mape:
+        print('range ', left_cps, right_cps_tmp)
+        print('best ', (left_cps + right_cps_tmp) / 2)
+        best_changepoint_prior_scale = (left_cps + right_cps_tmp) / 2
+    else:
+        print('range ', left_cps_tmp, right_cps)
+        print('best ', (left_cps_tmp + right_cps) / 2)
+        best_changepoint_prior_scale = (left_cps_tmp + right_cps) / 2
+
+    print('evaluating best ', best_changepoint_prior_scale)
+    forecast_info = make_forecast(historical_data, periods, best_changepoint_prior_scale)
+    forecast_info['params_info']['horizon_days'] = horizon_days
+
+    diagnostics = diagnose_model(horizon_days, forecast_info['model'])
+    forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+    mape = diagnostics['df_performance'].tail(1).mape.values[0]
+
+    stat = {
+        'changepoint_prior_scale': best_changepoint_prior_scale,
+        'mape': mape
+    }
+    stats.append(stat)
+    print(pd.DataFrame(stats).reindex(
+        columns=['changepoint_prior_scale', 'mape']))
+    print('time=', time.time() - start)
+
+    result_min_mape = {
+        'forecast_info': forecast_info,
+        'diagnostics': diagnostics,
+        'changepoint_prior_scale': best_changepoint_prior_scale,
+        'mape': mape
+    }
+
+    return result_min_mape
 
 def make_forecast(historical_data, periods, changepoint_prior_scale=0.05):
     """
