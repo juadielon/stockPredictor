@@ -122,7 +122,8 @@ def get_stock_info(ticker):
     stock_data = yf.Ticker(ticker)
 
     info = stock_data.info
-    # info = {'volume': 0}
+    info['currentPrice'] = stock_data.history('1d')['Close'][0]
+
     dividends = stock_data.dividends
 
     # Yahoo Finance allows to retrieve historical data for:
