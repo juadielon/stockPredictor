@@ -670,7 +670,7 @@ def make_graphs(ticker, stock_data):
                      ['yhat_lower'], stock_data['full_forecast']['yhat_upper'], color='#0072B2', alpha=0.2)
 
     # plot today line
-    plt.axvline(date_now, color='k', linestyle=':')
+    plt.axvline(date_now, color='silver', linestyle=':')
 
     # plot grid
     plt.grid(True, which='major', color='gray',
