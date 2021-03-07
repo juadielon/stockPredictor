@@ -21,30 +21,51 @@ cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
 
 my_cache = [
     {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.07},
+
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.50},
-    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.05},
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.05},
+    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.04}, #mape 0.2095
+
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.03},
-    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.49},
-    {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
+    # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.49},
+    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.07}, #mape 0.1373
+
+    # {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
+    {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.02}, #mape 0.0622
+
     # {'ticker': 'espo', 'changepoint_prior_scale': 0.34},
     # {'ticker': 'espo', 'changepoint_prior_scale': 0.17},
-    {'ticker': 'espo', 'changepoint_prior_scale': 0.173274},
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.173274},
+    {'ticker': 'espo', 'changepoint_prior_scale': 0.19208}, #mape 0.0661
+
     # {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
     {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.014904},
-    {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01},
+
+    {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01}, #mape 0.056
+    # {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.02678}, #mape 0.0797
+
     # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
     # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.009593},
-    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01},
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.009593},
+    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.26}, #mape 0.027785
+
+    # {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01},
+    # {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.004282},
+    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}, #mape 0.1334
+
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.18},
-    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.171128},
+    # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.171128},
+    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.142070}, #mape 0.1113
+
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.14},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.10},
-    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.135506},
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.135506},
+    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.11}, #mape 0.1422
+
     {'ticker': 'rbtz.ax', 'changepoint_prior_scale': 0.01},
     {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.50}
 ]
@@ -52,7 +73,6 @@ expire = 60 * 60 * 12 # 12 hours
 for index in range(len(my_cache)):
     cache.set(my_cache[index]['ticker'] + '_best_changepoint_prior_scale',
               my_cache[index]['changepoint_prior_scale'], expire=expire)
-
 
 def forecaster(ticker, periods):
     """
@@ -78,11 +98,16 @@ def forecaster(ticker, periods):
     cache_changepoint_prior_scale = ticker + '_best_changepoint_prior_scale'
     if not cache_changepoint_prior_scale in cache:
         print('No optimal changepoint_prior_scale was found in cache')
-        optimal_forecast = make_forecast_finding_best_changepoint_prior_scale3(
+        optimal_forecast = make_forecast_finding_best_changepoint_prior_scale2(
             stock_info['historical_data'], periods)
         expire = 60 * 60  * 12 # 12 hours
         cache.set(cache_changepoint_prior_scale,
                   optimal_forecast['changepoint_prior_scale'], expire=expire)
+
+        # Calculate deltas
+        delta = optimal_forecast['forecast_info']['forecast']['yhat'].pct_change()
+        optimal_forecast['forecast_info']['forecast'] = optimal_forecast['forecast_info']['forecast'].assign(delta = delta.values)
+
         fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
         result = {
             'stock_info': stock_info,
@@ -105,6 +130,11 @@ def forecaster(ticker, periods):
 
         diagnostics = diagnose_model(horizon_days, forecast_info['model'])
         forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
+
+        # Calculate deltas
+        delta = forecast_info['forecast']['yhat'].pct_change()
+        forecast_info['forecast'] = forecast_info['forecast'].assign(delta = delta.values)
+
         fig_paths = make_graphs(ticker, forecast_info)
         result = {
             'stock_info': stock_info,
@@ -132,6 +162,7 @@ def get_stock_info(ticker):
 
     info = stock_data.info
     info['currentPrice'] = stock_data.history('1d')['Close'][0]
+    # info['longBusinessSummary'] = info['longBusinessSummary'].value.decode('utf-8','ignore').encode("utf-8")
 
     dividends = stock_data.dividends
 
@@ -617,7 +648,6 @@ def diagnose_model(horizon_days, model):
     # print(df_performance)
 
     return {'df_cross_validation': df_cross_validation, 'df_performance': df_performance}
-
 
 def make_graphs(ticker, stock_data):
     """

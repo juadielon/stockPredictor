@@ -13,6 +13,11 @@
       integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1"
       crossorigin="anonymous"
     />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+      integrity="sha384-doAc3Z0i+SBp0Img0yrmvdUG7+DLbBYeol0n0hqTTKNgz9MINQa16YnwWGIcCzqz"
+      crossorigin="anonymous"
+    />
 
     <!-- Scripts -->
     <script
@@ -163,6 +168,7 @@
               <th scope="col">Predicted price (yhat)</th>
               <th scope="col">yhat lower</th>
               <th scope="col">yhat upper</th>
+              <th scope="col">Delta</th>
             </tr>
           </thead>
           <tbody>
@@ -172,6 +178,26 @@
               <td>{{ row.yhat|round(4) }}</td>
               <td>{{ row.yhat_lower|round(4) }}</td>
               <td>{{ row.yhat_upper|round(4) }}</td>
+              <td>
+                {#
+                  Make sure the value is different to nan by comparint the value to itself.
+                  The filter 'not a number' can't be used as nan is a number
+                #}
+                {% if row.delta == row.delta %}
+                  {% if row.delta > 0 %}
+                    {% set iconClass='bi-caret-up-fill' %}
+                    {% set color='green' %}
+                  {% else %}
+                    {% set iconClass='bi-caret-down-fill' %}
+                    {% set color='red' %}
+                  {% endif %}
+                  <span style="color: {{ color }}">
+                    {{ (row.delta*100)|round(2) }}%
+                    <i class="bi {{ iconClass }}"></i>
+                  </span>
+                {% endif %}
+              </td>
+
             </tr>
             {% endfor %}
           </tbody>
