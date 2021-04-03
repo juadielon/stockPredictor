@@ -24,4 +24,5 @@ def ticker():
     dividends = forecast_info['stock_info']['dividends']
     forecast = forecast_info['forecast'].itertuples()
     performance = forecast_info['performance'].itertuples()
-    return render_template('results.html', ticker=form.ticker.data, days=form.days.data, stock_info=stock_info, now=now, params_info=params_info, dividends=dividends, forecast=forecast, performance=performance, fig_paths=forecast_info['fig_paths'])
+    returns = forecast_info['returns']
+    return render_template('results.html', ticker=form.ticker.data, days=form.days.data, stock_info=stock_info, now=now, params_info=params_info, dividends=dividends, forecast=forecast, performance=performance, returns=returns, fig_paths=forecast_info['fig_paths'])

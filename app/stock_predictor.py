@@ -20,55 +20,86 @@ cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
 # Prime cache
 
 my_cache = [
-    {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.07},
+    # {'ticker': 'AUDUSD=X', 'changepoint_prior_scale': 0.03}, #mape 0.1553
+    {'ticker': 'AUDUSD=X', 'changepoint_prior_scale': 0.03}, #mape 0.151914
+
+    # {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.07},
+    {'ticker': 'a200.ax', 'changepoint_prior_scale': 0.03}, #mape 0.317347
 
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.38},
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.50},
     # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.05},
-    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.04}, #mape 0.2095
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.04}, #mape 0.2095
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.50}, #mape 0.1579
+    # {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.12}, #mape 0.18449
+    {'ticker': 'acdc.ax', 'changepoint_prior_scale': 0.42}, #mape 0.14471
 
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.21},
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.03},
     # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.49},
-    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.07}, #mape 0.1373
+    # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.07}, #mape 0.1373
+    # {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.07}, #mape 0.1393
+    {'ticker': 'asia.ax', 'changepoint_prior_scale': 0.01}, #mape 0.17043
 
     # {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.02}, #mape 0.0622
+    # {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.02}, #mape 0.0622
+    # {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.02}, #mape 0.1206
+    # {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01}, #mape 0.140703
+    {'ticker': 'espo.ax', 'changepoint_prior_scale': 0.01}, #mape 0.11134
 
     # {'ticker': 'espo', 'changepoint_prior_scale': 0.34},
     # {'ticker': 'espo', 'changepoint_prior_scale': 0.17},
     # {'ticker': 'espo', 'changepoint_prior_scale': 0.173274},
-    {'ticker': 'espo', 'changepoint_prior_scale': 0.19208}, #mape 0.0661
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.19208}, #mape 0.0661
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.22}, #mape 0.1023
+    # {'ticker': 'espo', 'changepoint_prior_scale': 0.18}, #mape 0.133571
+    {'ticker': 'espo', 'changepoint_prior_scale': 0.11}, #mape 0.160253
 
     # {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.02},
-    {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.014904},
+    # {'ticker': 'ethi.ax', 'changepoint_prior_scale': 0.014904},
 
-    {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01}, #mape 0.056
+    # {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.02678}, #mape 0.0797
+    # {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01}, #mape 0.056
+    # {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01}, #mape 0.0485
+    {'ticker': 'hack.ax', 'changepoint_prior_scale': 0.01}, #mape 0.0490
 
     # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.14},
     # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.009593},
-    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.26}, #mape 0.027785
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.26}, #mape 0.027785
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.49}, #mape 0.0258
+    # {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.06}, #mape 0.049505
+    {'ticker': 'hndq.ax', 'changepoint_prior_scale': 0.05}, #mape 0.05831
 
     # {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.004282},
-    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}, #mape 0.1334
+    # {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}, #mape 0.1341
+    {'ticker': 'ivv.ax', 'changepoint_prior_scale': 0.01}, #mape 0.13373
 
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.37},
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.18},
     # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.171128},
-    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.142070}, #mape 0.1113
+    # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.142070}, #mape 0.1113
+    # {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.13}, #mape 0.1162
+    {'ticker': 'mnrs.ax', 'changepoint_prior_scale': 0.13}, #mape 0.09327
 
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.14},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.10},
     # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.135506},
-    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.11}, #mape 0.1422
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.11}, #mape 0.1422
+    # {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.10}, #mape 0.1305
+    {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.06}, #mape 0.11099
 
-    {'ticker': 'rbtz.ax', 'changepoint_prior_scale': 0.01},
-    {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.50}
+    # {'ticker': 'rbtz.ax', 'changepoint_prior_scale': 0.01},
+
+    # {'ticker': 'tech.ax', 'changepoint_prior_scale': 0.50},
+
+    # {'ticker': 'vdhg.ax', 'changepoint_prior_scale': 0.08} #mape 0.1893
+    {'ticker': 'vdhg.ax', 'changepoint_prior_scale': 0.07} #mape 0.20344
 ]
+
 expire = 60 * 60 * 12 # 12 hours
 for index in range(len(my_cache)):
     cache.set(my_cache[index]['ticker'] + '_best_changepoint_prior_scale',
@@ -85,7 +116,6 @@ def forecaster(ticker, periods):
 
     stock_info = get_stock_info(ticker)
     stock_info['now'] = datetime.now()
-    print(datetime.now())
 
     # Make sure the new number of periods to use is not bigger than 36% of the historical periods
     periods = int(periods)
@@ -110,11 +140,9 @@ def forecaster(ticker, periods):
 
         fig_paths = make_graphs(ticker, optimal_forecast['forecast_info'])
         result = {
-            'stock_info': stock_info,
             'params_info': optimal_forecast['forecast_info']['params_info'],
             'forecast': optimal_forecast['forecast_info']['forecast'],
-            'performance': optimal_forecast['diagnostics']['df_performance'],
-            'fig_paths': fig_paths
+            'performance': optimal_forecast['diagnostics']['df_performance']
         }
     else:
         print('Using old changepoint_prior_scale found in cache')
@@ -137,12 +165,15 @@ def forecaster(ticker, periods):
 
         fig_paths = make_graphs(ticker, forecast_info)
         result = {
-            'stock_info': stock_info,
             'params_info': forecast_info['params_info'],
             'forecast': forecast_info['forecast'],
-            'performance': diagnostics['df_performance'],
-            'fig_paths': fig_paths
+            'performance': diagnostics['df_performance']
         }
+    result['stock_info'] = stock_info
+    result['fig_paths'] = fig_paths
+    result['returns'] = {}
+    result['returns']['requested_period'] = (result['forecast'].tail(1)['yhat'].values[0] / result['stock_info']['info']['currentPrice']) -1
+    result['returns']['annualised'] = result['returns']['requested_period'] / result['params_info']['periods'] * 365
     return result
 
 
