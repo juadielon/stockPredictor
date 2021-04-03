@@ -132,6 +132,15 @@
       <p>{{ days }} days were requested but this is less than the estimated number of max periods.</p>
       {% endif %}
 
+      <dl class="row">
+        <dt class="col-sm-2">Return on next {{ params_info['periods'] }} days:</dt>
+        <dd class="col-sm-10">{{ (returns['requested_period']*100)|round(2) }}%</dd>
+        {% if params_info['periods'] != 365 %}
+        <dt class="col-sm-2">Annualised returns:</dt>
+        <dd class="col-sm-10">{{ (returns['annualised']*100)|round(2) }}%</dd>
+        {% endif %}
+      </dl>
+
       <h3>Parameters used</h3>
       <dl class="row">
         <dt class="col-sm-2">Historical periods:</dt>
