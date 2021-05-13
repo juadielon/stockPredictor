@@ -3,7 +3,7 @@ FROM tiangolo/uwsgi-nginx-flask:python3.8
 #RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \ 
+RUN apt-get update \
     && apt-get install -y \
     apt-utils
 
@@ -26,6 +26,6 @@ RUN echo "uwsgi_read_timeout 900s;" > /etc/nginx/conf.d/uwsgi_timeout.conf
 RUN mkdir /var/log/uwsgi
 RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
-    && pip install pystan convertdate lunarcalendar holidays tqdm \
+    && pip install pystan==2.19.1.1 convertdate lunarcalendar holidays tqdm \
     && pip install fbprophet \
     && pip install diskcache
