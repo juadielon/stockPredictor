@@ -83,7 +83,11 @@
                 <td scope="col">{{ stock_info['bid'] }}</td>
                 <td scope="col">{{ stock_info['dayLow'] }}</td>
                 <td scope="col">{{ stock_info['dayHigh'] }}</td>
-                <td scope="col">{{ '{:,}'.format(stock_info['volume']) }}</td>
+                <td scope="col">
+                  {% if stock_info['volume'] is defined %}
+                    {{ '{:,}'.format(stock_info['volume']) }}
+                  {% endif %}
+                  </td>
                 <td scope="col">
                   {% if stock_info['yield'] is number %}
                     {{ (stock_info['yield']*100)|round(2) }}%
