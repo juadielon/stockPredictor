@@ -201,6 +201,11 @@ def get_stock_info(ticker):
     # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
     historical_data = stock_data.history('max', auto_adjust=True)
 
+    # Remove outliers. That is any close price value that is greater than 8 standard deviations
+    outliers = historical_data[np.abs(historical_data.Close-historical_data.Close.mean()) > (8*historical_data.Close.std())].Close
+    print('Close price values removed as outliers from historical data:', outliers)
+    historical_data = historical_data[np.abs(historical_data.Close-historical_data.Close.mean()) <= (8*historical_data.Close.std())]
+
     return {'info': info, 'dividends': dividends, 'historical_data': historical_data}
 
 
