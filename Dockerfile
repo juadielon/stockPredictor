@@ -29,3 +29,6 @@ RUN pip install --upgrade pip \
     && pip install pystan==2.19.1.1 convertdate lunarcalendar holidays tqdm \
     && pip install fbprophet \
     && pip install diskcache
+
+# To debug the build temporarily do
+#CMD tail -f /dev/null
