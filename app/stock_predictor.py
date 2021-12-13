@@ -1000,6 +1000,7 @@ class StockPredictor:
         df_historical_data = pd.DataFrame()
         df_historical_data['ds'] = self.stock_info['historical_data'].index.values
         df_historical_data['y'] = self.stock_info['historical_data']['Close'].values
+
         # Set minimum posible value
         # df_historical_data['floor'] = 0
 
@@ -1033,16 +1034,19 @@ class StockPredictor:
         #total_future['floor'] = 0
         #total_future['cap'] = 1.2 * df_historical_data['y'].max()
 
-        # As the stock exchange is closed on weekends, remove weekends in the future
-        future_weekdays = total_future[total_future['ds'].dt.dayofweek < 5]
-        # Enable for crypto
-        future_weekdays = total_future
+        # Check if there is data only on business days and if so remove weekends in the future
+        if all(df_historical_data['ds'].dt.dayofweek.unique() < 5):
+            # As the stock exchange is closed on weekends, remove weekends in the future
+            future_days = total_future[total_future['ds'].dt.dayofweek < 5]
+        else:
+            # Some markets are open all the time e.g. crypto
+            future_days = total_future
 
-        # As some days were removed, recalculate number of available periods to display
+        # Recalculate number of available periods to display in case that some days were removed
         future_weekdays_count = self.periods - \
-            (len(total_future) - len(future_weekdays))
+            (len(total_future) - len(future_days))
 
-        full_forecast = model.predict(future_weekdays)
+        full_forecast = model.predict(future_days)
 
         #model.history['y'] = np.exp(model.history['y']) -1
         #df_historical_data['y'] = np.exp(df_historical_data['y']) -1
