@@ -3,11 +3,12 @@ from app import app
 from app.ticker_form import TickerForm
 from app.stock_predictor import StockPredictor
 
+import os.path
+
 @app.route('/')
 def home():
     form = TickerForm()
     return render_template('home.html', form=form)
-
 
 @app.route('/ticker', methods=['POST'])
 def ticker():
@@ -31,3 +32,11 @@ def ticker():
         returns = forecast_info['returns'],
         fig_paths = forecast_info['fig_paths']
     )
+
+@app.route('/preload')
+def preload():
+    """
+    Read previously requested tickers and cache them
+    """
+    StockPredictor().preload()
+    return 'Working ... Check the logs at /var/log/uwsgi/uwsgi.log'
