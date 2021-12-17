@@ -17,7 +17,7 @@ import time
 import math
 
 class StockPredictor:
-    def __init__(self, ticker, periods):
+    def __init__(self, ticker='', periods=365):
         self.ticker = ticker
 
         self.cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
@@ -30,12 +30,38 @@ class StockPredictor:
         self.cache_obj = []
         self.prime_cache()
 
-        self.stock_info = self.get_stock_info()
-        self.stock_info['now'] = datetime.now()
+        if ticker:
+            self.stock_info = self.get_stock_info()
+            self.stock_info['now'] = datetime.now()
 
-        self.periods = self.restrict_max_periods(periods)
+            self.periods = self.restrict_max_periods(periods)
 
-        self.forecaster()
+            self.forecaster()
+
+    def preload(self, periods=365):
+        """
+        Read previously requested tickers. make forecast on all of them and set cache
+        """
+
+        if not os.path.isfile(self.cache_obj_file_path):
+            print('File ' + self.cache_obj_file_path + ' was not found')
+            return
+
+        with open(self.cache_obj_file_path, 'r', encoding='utf-8') as json_file:
+            tickers = json.load(json_file)
+
+        for index in range(len(tickers)):
+            self.cache.clear()
+            self.cache_obj = []
+
+            self.ticker = tickers[index]['ticker']
+            print('Forecasting ' + self.ticker)
+            self.stock_info = self.get_stock_info()
+            self.stock_info['now'] = datetime.now()
+
+            self.periods = self.restrict_max_periods(periods)
+
+            self.forecaster()
 
     def prime_cache(self):
         if not os.path.isfile(self.cache_obj_file_path):
@@ -275,7 +301,7 @@ class StockPredictor:
             diagnostics = self.diagnose_model(horizon_days, forecast_info['model'])
             forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
             mape = diagnostics['df_performance'].tail(1).mape.values[0]
-            print('Evaluating changepoint_prior_scale=', changepoint_prior_scale)
+            print('Evaluating ' + self.ticker + ' with changepoint_prior_scale=', changepoint_prior_scale)
 
             stat = {
                 'changepoint_prior_scale': changepoint_prior_scale,
