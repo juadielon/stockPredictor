@@ -719,10 +719,10 @@ class StockPredictor:
         # Save graphs
         fig_location = '/static/img/figures/'
         fig_paths = {
-            'price': fig_location + 'price_' + self.ticker + '.png',
-            'components': fig_location + 'components_' + self.ticker + '.png',
-            # 'forecast': fig_location + 'forecast_' + ticker + '.png',
-            'mape': fig_location + 'mape_' + self.ticker + '.png'
+            'price': fig_location + 'price_' + self.ticker + '.svg',
+            'components': fig_location + 'components_' + self.ticker + '.svg',
+            # 'forecast': fig_location + 'forecast_' + ticker + '.svg',
+            'mape': fig_location + 'mape_' + self.ticker + '.svg'
         }
 
         date_now = datetime.now()
