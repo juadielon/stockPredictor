@@ -144,7 +144,14 @@ class StockPredictor:
             changepoint_prior_scale = self.cache.get(cache_changepoint_prior_scale)
 
             # Test the model using 25% of historical data as the horizon
-            horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
+            # TODO review why all of a sudden I have to do this for some tickers as I'm getting
+            # ValueError: Less data than horizon after initial window. Make horizon or initial shorter.
+            #horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
+            testPercentage = 0.25
+            if self.ticker in ['ada-aud', 'btc-aud', 'doge-aud', 'dot-aud', 'eth-aud', 'ftm-aud', 'ksm-aud', 'luna1-aud', 'matic-aud', 'sol-aud']:
+                testPercentage = 0.24
+
+            horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
 
             forecast_info = self.make_forecast(changepoint_prior_scale)
             forecast_info['change_point_prior_scale'] = changepoint_prior_scale
@@ -292,7 +299,14 @@ class StockPredictor:
 
         start = time.time()
         # Test the model using 25% of historical data as the horizon
-        horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
+        # TODO review why all of a sudden I have to do this for some tickers as I'm getting
+        # ValueError: Less data than horizon after initial window. Make horizon or initial shorter.
+        #horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
+        testPercentage = 0.25
+        if self.ticker in ['ada-aud', 'btc-aud', 'doge-aud', 'dot-aud', 'eth-aud', 'ftm-aud', 'ksm-aud', 'luna1-aud', 'matic-aud', 'sol-aud']:
+            testPercentage = 0.24
+
+        horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
 
         stats = []
         result_min_mape = {'mape': 100}
