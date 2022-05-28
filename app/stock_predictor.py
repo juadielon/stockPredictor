@@ -187,7 +187,7 @@ class StockPredictor:
         ticker - is the ticker/quote of the stock as defined by Yahoo Finance
         """
 
-        print('Retrieving data from Yahoo Finance')
+        print('Retrieving data from Yahoo Finance for ticker ', self.ticker)
 
         # Get historical data from Yahoo Finance
         stock_data = yf.Ticker(self.ticker)
@@ -309,7 +309,7 @@ class StockPredictor:
         horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
 
         stats = []
-        result_min_mape = {'mape': 100}
+        result_min_mape = {'mape': 100000}
 
         # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
         for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
@@ -719,6 +719,7 @@ class StockPredictor:
         """
 
         horizon = str(horizon_days) + ' days'
+        print('horizon',horizon)
 
         df_cross_validation = cross_validation(model, horizon=horizon, parallel='processes')
 
