@@ -191,9 +191,14 @@ class StockPredictor:
 
         dividends = stock_data.dividends
 
-        # Yahoo Finance allows to retrieve historical data for:
-        # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
-        historical_data = stock_data.history('max', auto_adjust=True)
+        # For Polkadot, request newer data as old data has some weird prices.
+        # This is happening after Yahoo Finance changed the ticker from dot1-aud to dot-aud
+        if self.ticker == 'dot-aud':
+            historical_data = stock_data.history(start='2020-08-20', auto_adjust=True)
+        else:
+            # Yahoo Finance allows to retrieve historical data for:
+            # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+            historical_data = stock_data.history('max', auto_adjust=True)
 
         # Remove outliers. That is any close price value that is greater than 8 standard deviations
         outliers = historical_data[np.abs(historical_data.Close-historical_data.Close.mean()) > (8*historical_data.Close.std())].Close
