@@ -1,4 +1,4 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.8
+FROM tiangolo/uwsgi-nginx-flask:python3.12
 
 #RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 ARG DEBIAN_FRONTEND=noninteractive
@@ -28,8 +28,6 @@ RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
     && pip install prophet \
     && pip install diskcache plotly
-
-RUN pip install multitasking==0.0.11
 
 # To debug the build temporarily do
 #CMD ["tail", "-f", "/dev/null"]
