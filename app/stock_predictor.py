@@ -1,10 +1,10 @@
 import yfinance as yf
 import pandas as pd
 from matplotlib import pyplot as plt
-from fbprophet import Prophet
-from fbprophet.diagnostics import cross_validation, performance_metrics
-from fbprophet.plot import plot_cross_validation_metric
-from fbprophet.plot import add_changepoints_to_plot
+from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
+from prophet.plot import plot_cross_validation_metric
+from prophet.plot import add_changepoints_to_plot
 from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
@@ -309,7 +309,7 @@ class StockPredictor:
         horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
 
         stats = []
-        result_min_mape = {'mape': 100000}
+        result_min_mape = {'mape': 9999999}
 
         # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
         for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):

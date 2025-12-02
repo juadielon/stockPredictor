@@ -6,7 +6,8 @@ docker build -t ${app} .
 docker stop ${app}
 docker rm ${app}
 
-docker run -d -p 80:80 --name=${app} -v ${PWD}:/app ${app}
+#docker run -d -p 80:80 --name=${app} -v ${PWD}:/app ${app}
+docker run -d -p 80:80 --dns=1.1.1.1 --name=${app} -v ${PWD}:/app ${app}
 
 # Remove:
 # - all stopped containers

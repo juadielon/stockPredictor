@@ -15,8 +15,8 @@ RUN apt-get upgrade -y \
 RUN rm -rf /var/lib/apt/lists/* \
     && rm -rf /src/*.deb
 
-ENV STATIC_URL /static
-ENV STATIC_PATH /app/static
+ENV STATIC_URL=/static
+ENV STATIC_PATH=/app/static
 
 # Set the timezone
 RUN ln -fs /usr/share/zoneinfo/Australia/Brisbane /etc/localtime \
@@ -26,9 +26,10 @@ RUN echo "uwsgi_read_timeout 900s;" > /etc/nginx/conf.d/uwsgi_timeout.conf
 RUN mkdir /var/log/uwsgi
 RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
-    && pip install pystan==2.19.1.1 convertdate lunarcalendar holidays tqdm \
-    && pip install fbprophet \
-    && pip install diskcache
+    && pip install prophet \
+    && pip install diskcache plotly
+
+RUN pip install multitasking==0.0.11
 
 # To debug the build temporarily do
-#CMD tail -f /dev/null
+#CMD ["tail", "-f", "/dev/null"]
