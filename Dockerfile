@@ -49,7 +49,7 @@ RUN mkdir -p /var/log/supervisor
 EXPOSE 80
 
 # Make scripts executable
-RUN chmod +x *.sh
+RUN chmod +x /app/*.sh /app/entrypoint.sh
 
-# Run prestart script (if it continues to exist) and then start supervisor
-CMD ["/usr/bin/supervisord"]
+# Run entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]

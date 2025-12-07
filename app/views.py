@@ -39,4 +39,4 @@ def preload():
     Read previously requested tickers and cache them
     """
     StockPredictor().preload()
-    return 'Working ... Check the logs at /var/log/uwsgi/uwsgi.log'
+    return 'Working ... Check the container logs (docker logs -f stock_predictor)'
