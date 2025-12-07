@@ -43,3 +43,17 @@ service nginx reload
 or
 supervisorctl restart nginx
 ```
+
+## Scripts
+
+### `./start.sh`
+Builds the docker image, removes any previous container instances, and runs the new container on port 80. It also prunes unused docker system resources.
+
+### `./restart.sh`
+Restarts the `stock_predictor` container. Use this if you want to restart the application without rebuilding the image.
+
+### `./preload.sh`
+Triggers the pre-calculation of forecasts for tickers defined in the cache configuration. It sends a request to the `/preload` endpoint and follows the logs to show progress.
+
+### `./prestart.sh`
+Internal script executed automatically by the container during startup. It cleans up Nginx logs. You do not need to run this manually.
