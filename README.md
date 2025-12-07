@@ -16,13 +16,9 @@ Then visit http://localhost
 
 ## Update after code changes
 
-Uwsgi restarts everytime the uwsgi.ini file is changed. So everytime a file is changed simply do the following for the changes to take effect:
+The application is configured to automatically reload when code changes are detected (Hot Reloading). You do not need to manually restart the service for Python code changes.
 
-```
-touch uwsgi.ini
-```
-
-Alternatively, the docker container can be restarted with the following script:
+However, if you need to fully restart the container (e.g., after changing `requirements` or `Dockerfile`), use:
 
 ```
 ./restart.sh

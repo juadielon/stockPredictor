@@ -1,20 +1,40 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.12
+FROM python:3.13-slim
 
-#RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
-ARG DEBIAN_FRONTEND=noninteractive
+# Prevent writing pyc files to disc
+ENV PYTHONDONTWRITEBYTECODE=1
+# Prevent buffering stdout and stderr
+ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update \
-    && apt-get install -y \
-    apt-utils
+# Install system dependencies
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    vim \
+    apt-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get upgrade -y \
-    && apt-get install -y \
-    vim
+# Install python dependencies
+RUN pip install --upgrade pip \
+    && pip install flask-wtf yfinance \
+    && pip install prophet \
+    && pip install diskcache plotly \
+    && pip install gunicorn
 
-# Clean after apt-get update and installs
-RUN rm -rf /var/lib/apt/lists/* \
-    && rm -rf /src/*.deb
+# Set up Nginx
+RUN rm /etc/nginx/sites-enabled/default
+COPY nginx.conf /etc/nginx/nginx.conf
 
+# Set up Supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Set up Gunicorn config
+COPY gunicorn_conf.py /app/gunicorn_conf.py
+
+# Copy application code
+WORKDIR /app
+COPY . /app
+
+# Set environment variables for static files (used by the app logic if needed, though Nginx handles serving now)
 ENV STATIC_URL=/static
 ENV STATIC_PATH=/app/static
 
@@ -22,12 +42,14 @@ ENV STATIC_PATH=/app/static
 RUN ln -fs /usr/share/zoneinfo/Australia/Brisbane /etc/localtime \
     && dpkg-reconfigure --frontend noninteractive tzdata
 
-RUN echo "uwsgi_read_timeout 900s;" > /etc/nginx/conf.d/uwsgi_timeout.conf
-RUN mkdir /var/log/uwsgi
-RUN pip install --upgrade pip \
-    && pip install flask-wtf yfinance \
-    && pip install prophet \
-    && pip install diskcache plotly
+# Create directory for supervisor logs if not exists
+RUN mkdir -p /var/log/supervisor
 
-# To debug the build temporarily do
-#CMD ["tail", "-f", "/dev/null"]
+# Expose port 80
+EXPOSE 80
+
+# Make scripts executable
+RUN chmod +x *.sh
+
+# Run prestart script (if it continues to exist) and then start supervisor
+CMD ["/usr/bin/supervisord"]
