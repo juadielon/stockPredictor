@@ -51,8 +51,6 @@ Restarts the `stock_predictor` container. Use this if you want to restart the ap
 ### `./preload.sh`
 Triggers the pre-calculation of forecasts for tickers defined in the cache configuration. It sends a request to the `/preload` endpoint and follows the logs to show progress.
 
-### `./prestart.sh`
-Internal script executed automatically by the container during startup. It cleans up Nginx logs. You do not need to run this manually.
 
 ## Cache Configuration
 
