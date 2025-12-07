@@ -57,3 +57,20 @@ Triggers the pre-calculation of forecasts for tickers defined in the cache confi
 
 ### `./prestart.sh`
 Internal script executed automatically by the container during startup. It cleans up Nginx logs. You do not need to run this manually.
+
+## Cache Configuration
+
+### `tmp/tickers_change_point_prior_scale.json`
+This file contains a list of tickers and their pre-calculated optimal `changepoint_prior_scale` parameters. The application uses this file to:
+1.  Speed up forecasts by using cached parameters instead of recalculating them.
+2.  Define the list of tickers to cache when running `./preload.sh`.
+
+Example structure:
+```json
+[
+    {
+        "ticker": "ndq.ax",
+        "changepoint_prior_scale": 0.01
+    }
+]
+```
