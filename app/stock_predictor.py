@@ -16,6 +16,7 @@ import json
 import time
 import math
 
+
 class StockPredictor:
     def __init__(self, ticker='', periods=365):
         self.ticker = ticker
@@ -133,6 +134,9 @@ class StockPredictor:
             delta = optimal_forecast['forecast_info']['forecast']['yhat'].pct_change()
             optimal_forecast['forecast_info']['forecast'] = optimal_forecast['forecast_info']['forecast'].assign(delta = delta.values)
 
+            # Ensure df_performance is in forecast_info for make_graphs
+            optimal_forecast['forecast_info']['df_performance'] = optimal_forecast['diagnostics']['df_performance']
+
             fig_paths = self.make_graphs(optimal_forecast['forecast_info'])
             result = {
                 'params_info': optimal_forecast['forecast_info']['params_info'],
@@ -163,6 +167,9 @@ class StockPredictor:
             # Calculate deltas
             delta = forecast_info['forecast']['yhat'].pct_change()
             forecast_info['forecast'] = forecast_info['forecast'].assign(delta = delta.values)
+
+            # Ensure df_performance is in forecast_info for make_graphs
+            forecast_info['df_performance'] = diagnostics['df_performance']
 
             fig_paths = self.make_graphs(forecast_info)
             result = {
