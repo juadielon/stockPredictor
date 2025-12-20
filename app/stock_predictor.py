@@ -744,13 +744,13 @@ class StockPredictor:
         """
         # Save graphs
         fig_location = '/static/img/figures/'
-        
         fig_paths = {}
-
+        
         # Helper to convert to clean serializable list
         def to_list(vals, is_date=False):
             if is_date:
                 return pd.to_datetime(vals).dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
+
             # Cleanly handle nan/inf for JSON
             cleaned = []
             for v in vals.values.astype(float):
@@ -758,7 +758,7 @@ class StockPredictor:
                 else: cleaned.append(v)
             return cleaned
 
-        # 1. Price Forecast Graph
+        # 1. Price Forecast Graph (Manual Construction)
         fig_price = go.Figure()
         fcst = stock_data['full_forecast']
         hist = stock_data['historical_data']
@@ -798,7 +798,6 @@ class StockPredictor:
             scp_str = pd.Timestamp(scp).strftime('%Y-%m-%d %H:%M:%S')
             fig_price.add_vline(x=scp_str, line_width=2, line_dash="dot", line_color="red")
 
-
         fig_price.update_layout(
             title=dict(text=f"{self.ticker.upper()} - Close Price & Forecast", font=dict(size=20)),
             xaxis_title="Day (ds)",
@@ -809,28 +808,35 @@ class StockPredictor:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
-         # 2. Components Graph (Manual construction for accurate scaling and trend bands)
+        # 2. Components Graph (Manual construction for accurate scaling and trend bands)
+        # Using manual construction because native plot_components_plotly fails to correctly 
+        # isolate seasonality (producing linear artifacts).
         from plotly.subplots import make_subplots
         comps = []
-        if 'trend' in fcst.columns: comps.append('trend')
-        if 'weekly' in fcst.columns: comps.append('weekly')
-        if 'yearly' in fcst.columns: comps.append('yearly')
+        if 'trend' in stock_data['full_forecast'].columns: comps.append('trend')
+        if 'weekly' in stock_data['full_forecast'].columns: comps.append('weekly')
+        if 'yearly' in stock_data['full_forecast'].columns: comps.append('yearly')
 
         fig_components = make_subplots(rows=len(comps), cols=1, subplot_titles=[c.title() for c in comps], vertical_spacing=0.10)
+
+        # Data reuse
+        fcast_ds = to_list(stock_data['full_forecast']['ds'], is_date=True)
+
         for i, comp in enumerate(comps):
             if comp == 'trend':
                 # Add Trend Band (Forecast Range)
-                if 'trend_lower' in fcst.columns and 'trend_upper' in fcst.columns:
-                    t_up, t_low = to_list(fcst['trend_upper']), to_list(fcst['trend_lower'])
+                if 'trend_lower' in stock_data['full_forecast'].columns and 'trend_upper' in stock_data['full_forecast'].columns:
+                    t_up = to_list(stock_data['full_forecast']['trend_upper'])
+                    t_low = to_list(stock_data['full_forecast']['trend_lower'])
                     fig_components.add_trace(go.Scatter(x=fcast_ds + fcast_ds[::-1], y=t_up + t_low[::-1], fill='toself', 
                                                       fillcolor='rgba(0, 114, 178, 0.2)', line=dict(color='rgba(0,0,0,0)'), 
                                                       hoverinfo="skip", showlegend=False, name='Trend Uncertainty'), row=i+1, col=1)
                 
-                fig_components.add_trace(go.Scatter(x=fcast_ds, y=to_list(fcst['trend']), name='Trend', line=dict(color='#0072B2', width=2.5)), row=i+1, col=1)
+                fig_components.add_trace(go.Scatter(x=fcast_ds, y=to_list(stock_data['full_forecast']['trend']), name='Trend', line=dict(color='#0072B2', width=2.5)), row=i+1, col=1)
             
             elif comp == 'weekly':
                 # Exact value parity using synthetic Sunday-start baseline
-                days = pd.date_range(start='2017-01-01', periods=7, freq='D') # Sunday baseline
+                days = pd.date_range(start='2017-01-01', periods=7, freq='D') # 2017-01-01 was a Sunday
                 w_fcst = stock_data['model'].predict(pd.DataFrame({'ds': days}))
                 fig_components.add_trace(go.Scatter(x=['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], 
                                                    y=to_list(w_fcst['weekly']), name='Weekly', line=dict(color='#0072B2', width=2.5)), row=i+1, col=1)
@@ -846,9 +852,9 @@ class StockPredictor:
             if comp != 'trend': fig_components.add_hline(y=0, row=i+1, col=1, line_dash="dash", line_color="gray")
 
         fig_components.update_layout(title=dict(text=f"{self.ticker.upper()} - Model Components", font=dict(size=20)), 
-                                     height=400*len(comps), template="plotly_white", showlegend=False, margin=dict(l=50, r=20, t=80, b=50))
+                                     height=350 * len(comps) + 100, template="plotly_white", showlegend=False, margin=dict(l=50, r=20, t=80, b=50))
 
-        # 3. MAPE Analysis
+        # 3. MAPE Analysis (Manual - No native Plotly equivalent)
         fig_mape = go.Figure()
         if stock_data['df_cross_validation'] is not None:
              df_cv = stock_data['df_cross_validation'].copy()
