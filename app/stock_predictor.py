@@ -1,9 +1,8 @@
 import yfinance as yf
 import pandas as pd
-from matplotlib import pyplot as plt
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
-from prophet.plot import plot_cross_validation_metric, plot_plotly, plot_components_plotly
+from prophet.plot import plot_plotly, plot_components_plotly
 from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
@@ -745,83 +744,8 @@ class StockPredictor:
         """
         # Save graphs
         fig_location = '/static/img/figures/'
-        fig_paths = {
-            'price': fig_location + 'price_' + self.ticker + '.svg',
-            'components': fig_location + 'components_' + self.ticker + '.svg',
-            # 'forecast': fig_location + 'forecast_' + ticker + '.svg',
-            'mape': fig_location + 'mape_' + self.ticker + '.svg'
-        }
-
-        date_now = datetime.now()
-
-        # Price & Forecast
-        fig_price = plt.figure(facecolor='w', figsize=(10, 6))
-
-        plt.title(self.ticker + ' - close price & forecast', fontsize=10, pad=1)
-        plt.xlabel('Day (ds)', fontsize=10)
-        plt.ylabel('Price (y)', fontsize=10)
-
-        # plot changes in price and significate changes in price
-        for changepoint in stock_data['model'].changepoints:
-            plt.axvline(changepoint, color="lightsalmon", linestyle=":")
-
-        signif_changepoint_threshold = 0.01
-        signif_changepoints = stock_data['model'].changepoints[np.abs(np.nanmean(
-            stock_data['model'].params['delta'], axis=0)) >= signif_changepoint_threshold] if len(stock_data['model'].changepoints) > 0 else []
-        for signif_changepoint in signif_changepoints:
-            plt.axvline(signif_changepoint, color='r', linestyle=':')
-
-        # plot trend
-        plt.plot(stock_data['full_forecast']['ds'],
-                stock_data['full_forecast']['trend'], color='r')
-
-        # plot historical data
-        plt.plot(stock_data['historical_data']['ds'],
-                stock_data['historical_data']['y'], color='k', linewidth=1)
-
-        # plot forecast
-        #@todo find a way to limit lower forecasted value to zero
-        # in the meantime limit the y axis to zero
-        if stock_data['full_forecast']['yhat_lower'].min() < 0:
-            plt.ylim(0, stock_data['full_forecast']['yhat_upper'].max())
-
-        plt.plot(
-            stock_data['full_forecast']['ds'],
-            stock_data['full_forecast']['yhat']
-        )
-        plt.fill_between(
-            stock_data['full_forecast']['ds'], stock_data['full_forecast']['yhat_lower'],
-            stock_data['full_forecast']['yhat_upper'], color='#0072B2', alpha=0.2
-        )
-
-        # plot today line
-        plt.axvline(date_now, color='silver', linestyle=':')
-
-        # plot grid
-        plt.grid(True, which='major', color='gray', linestyle='-', linewidth=1, alpha=0.2)
-
-        fig_price.savefig('../app' + fig_paths['price'])
-
-        # Forecast
-        # fig_forecast = stock_data['model'].plot(stock_data['full_forecast'])
-        # add_changepoints_to_plot(
-        #     fig_forecast.gca(), stock_data['model'], stock_data['full_forecast'])
-        # plt.margins(x=0)
-        # plt.title(ticker + ' price forecast', fontsize=10, pad=1)
-        # plt.xlabel('Day (ds)', fontsize=10)
-        # plt.ylabel('Price (y)', fontsize=10)
-        # plt.axvline(date_now, color='k', linestyle=':')
-        # fig_forecast.savefig('../app' + fig_paths['forecast'])
-
-        # Components
-        stock_data['model'].plot_components(stock_data['full_forecast']).savefig(
-            '../app' + fig_paths['components'])
-
-        # Performance - Cross validation of the percentage error (MAPE)
-        plot_cross_validation_metric(stock_data['df_cross_validation'], metric='mape').savefig(
-            '../app' + fig_paths['mape'])
-
-        plt.close('all')
+        
+        fig_paths = {}
 
         # Helper to convert to clean serializable list
         def to_list(vals, is_date=False):
@@ -874,8 +798,9 @@ class StockPredictor:
             scp_str = pd.Timestamp(scp).strftime('%Y-%m-%d %H:%M:%S')
             fig_price.add_vline(x=scp_str, line_width=2, line_dash="dot", line_color="red")
 
+
         fig_price.update_layout(
-            title=dict(text=f"{self.ticker.upper()} - Close Price & Forecast (Interactive)", font=dict(size=20)),
+            title=dict(text=f"{self.ticker.upper()} - Close Price & Forecast", font=dict(size=20)),
             xaxis_title="Day (ds)",
             yaxis_title="Price (y)",
             template="plotly_white",
@@ -884,14 +809,14 @@ class StockPredictor:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
-        # 2. Components Graph (Manual construction for accurate scaling and trend bands)
+         # 2. Components Graph (Manual construction for accurate scaling and trend bands)
         from plotly.subplots import make_subplots
         comps = []
         if 'trend' in fcst.columns: comps.append('trend')
         if 'weekly' in fcst.columns: comps.append('weekly')
         if 'yearly' in fcst.columns: comps.append('yearly')
 
-        fig_components = make_subplots(rows=len(comps), cols=1, subplot_titles=[c.title() for c in comps], vertical_spacing=0.15)
+        fig_components = make_subplots(rows=len(comps), cols=1, subplot_titles=[c.title() for c in comps], vertical_spacing=0.10)
         for i, comp in enumerate(comps):
             if comp == 'trend':
                 # Add Trend Band (Forecast Range)
@@ -920,8 +845,8 @@ class StockPredictor:
             
             if comp != 'trend': fig_components.add_hline(y=0, row=i+1, col=1, line_dash="dash", line_color="gray")
 
-        fig_components.update_layout(title=dict(text=f"{self.ticker.upper()} - Model Components (Interactive)", font=dict(size=20)), 
-                                     height=250*len(comps)+150, template="plotly_white", showlegend=False, margin=dict(l=50, r=20, t=80, b=50))
+        fig_components.update_layout(title=dict(text=f"{self.ticker.upper()} - Model Components", font=dict(size=20)), 
+                                     height=400*len(comps), template="plotly_white", showlegend=False, margin=dict(l=50, r=20, t=80, b=50))
 
         # 3. MAPE Analysis
         fig_mape = go.Figure()
@@ -939,7 +864,7 @@ class StockPredictor:
                   df_p = stock_data['df_performance']
                   fig_mape.add_trace(go.Scatter(x=df_p['horizon'].dt.days.tolist(), y=_clean_mape(df_p['mape'].values), mode='lines', name='Mean MAPE', line=dict(color='#0072B2', width=3)))
              
-             fig_mape.update_layout(title=dict(text=f"{self.ticker.upper()} - Cross Validation MAPE (Plotly)", font=dict(size=20)), xaxis_title="Horizon (Days)", yaxis_title="MAPE", template="plotly_white", margin=dict(l=50, r=20, t=80, b=50))
+             fig_mape.update_layout(title=dict(text=f"{self.ticker.upper()} - Cross Validation MAPE", font=dict(size=20)), xaxis_title="Horizon (Days)", yaxis_title="MAPE", template="plotly_white", margin=dict(l=50, r=20, t=80, b=50))
 
         # Robust serialization
         return {
