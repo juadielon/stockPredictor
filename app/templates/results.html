@@ -155,22 +155,82 @@ endblock %}
 
   <!-- Graph: Price & Forecast -->
   <div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h3 class="h5 fw-bold mb-0">Price Forecast</h3>
+      <ul class="nav nav-pills card-header-pills" id="priceTab" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="price-static-tab" data-bs-toggle="tab" data-bs-target="#price-static"
+            type="button" role="tab">Static (Matplotlib)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="price-plotly-tab" data-bs-toggle="tab" data-bs-target="#price-plotly"
+            type="button" role="tab">Interactive (Plotly)</button>
+        </li>
+      </ul>
+    </div>
     <div class="card-body p-0">
-      <img src="{{ fig_paths.price }}" class="img-fluid w-100 rounded-bottom" alt="Price Chart">
+      <div class="tab-content" id="priceTabContent">
+        <div class="tab-pane fade show active" id="price-static" role="tabpanel">
+          <img src="{{ fig_paths.price }}" class="img-fluid w-100 rounded-bottom" alt="Price Chart">
+        </div>
+        <div class="tab-pane fade" id="price-plotly" role="tabpanel">
+          <div id="price-chart" class="w-100" style="height: 600px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Graph: Components -->
   <div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h3 class="h5 fw-bold mb-0">Model Components</h3>
+      <ul class="nav nav-pills card-header-pills" id="componentsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="components-static-tab" data-bs-toggle="tab"
+            data-bs-target="#components-static" type="button" role="tab">Static (Matplotlib)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="components-plotly-tab" data-bs-toggle="tab" data-bs-target="#components-plotly"
+            type="button" role="tab">Interactive (Plotly)</button>
+        </li>
+      </ul>
+    </div>
     <div class="card-body p-0">
-      <img src="{{ fig_paths.components }}" class="img-fluid w-100 rounded-bottom" alt="Components Chart">
+      <div class="tab-content" id="componentsTabContent">
+        <div class="tab-pane fade show active" id="components-static" role="tabpanel">
+          <img src="{{ fig_paths.components }}" class="img-fluid w-100 rounded-bottom" alt="Components Chart">
+        </div>
+        <div class="tab-pane fade" id="components-plotly" role="tabpanel">
+          <div id="components-chart" class="w-100" style="height: 600px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Graph: MAPE -->
   <div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h3 class="h5 fw-bold mb-0">Cross Validation Metrics (MAPE)</h3>
+      <ul class="nav nav-pills card-header-pills" id="mapeTab" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="mape-static-tab" data-bs-toggle="tab" data-bs-target="#mape-static"
+            type="button" role="tab">Static (Matplotlib)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="mape-plotly-tab" data-bs-toggle="tab" data-bs-target="#mape-plotly" type="button"
+            role="tab">Interactive (Plotly)</button>
+        </li>
+      </ul>
+    </div>
     <div class="card-body p-0">
-      <img src="{{ fig_paths.mape }}" class="img-fluid w-100 rounded-bottom" alt="MAPE Chart">
+      <div class="tab-content" id="mapeTabContent">
+        <div class="tab-pane fade show active" id="mape-static" role="tabpanel">
+          <img src="{{ fig_paths.mape }}" class="img-fluid w-100 rounded-bottom" alt="MAPE Chart">
+        </div>
+        <div class="tab-pane fade" id="mape-plotly" role="tabpanel">
+          <div id="mape-chart" class="w-100" style="height: 600px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -221,4 +281,25 @@ endblock %}
 
 </div>
 
+
+<!-- Plotly Graphs Script -->
+<script>
+  var priceGraph = {{ fig_paths.plotly_price | safe }};
+  var componentsGraph = {{ fig_paths.plotly_components | safe }};
+  var mapeGraph = {{ fig_paths.plotly_mape | safe }};
+
+  // Use a timeout to ensure tabs execute layout updates correctly when shown
+  // But initially just render them
+  Plotly.newPlot('price-chart', priceGraph.data, priceGraph.layout, { responsive: true });
+  Plotly.newPlot('components-chart', componentsGraph.data, componentsGraph.layout, { responsive: true });
+  Plotly.newPlot('mape-chart', mapeGraph.data, mapeGraph.layout, { responsive: true });
+
+  // Fix for Plotly sizing in Tabs
+  var tabEls = document.querySelectorAll('button[data-bs-toggle="tab"]')
+  tabEls.forEach(function (tabEl) {
+    tabEl.addEventListener('shown.bs.tab', function (event) {
+      window.dispatchEvent(new Event('resize'));
+    })
+  })
+</script>
 {% endblock %}

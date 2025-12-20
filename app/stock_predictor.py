@@ -5,6 +5,7 @@ from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 from prophet.plot import plot_cross_validation_metric
 from prophet.plot import add_changepoints_to_plot
+from prophet.plot import plot_components_plotly
 from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
@@ -15,6 +16,8 @@ import json
 
 import time
 import math
+import plotly.graph_objs as go
+import plotly.utils
 
 
 class StockPredictor:
@@ -822,5 +825,282 @@ class StockPredictor:
             '../app' + fig_paths['mape'])
 
         plt.close('all')
+
+        # --- PLOTLY GENERATION ---
+        
+        # Helper to convert Series/Index to list of clean float or string dates
+        def to_list(vals, is_date=False):
+            if is_date:
+                return pd.to_datetime(vals).dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
+            return vals.values.astype(float).tolist()
+
+        # 1. Price vs Forecast Graph
+        fig_price = go.Figure()
+        
+        hist_ds = to_list(stock_data['historical_data']['ds'], is_date=True)
+        fcast_ds = to_list(stock_data['full_forecast']['ds'], is_date=True)
+
+        # Trend (Bottom Layer)
+        fig_price.add_trace(go.Scatter(
+            x=fcast_ds,
+            y=to_list(stock_data['full_forecast']['trend']),
+            mode='lines',
+            name='Trend',
+            line=dict(color='red', width=2)
+        ))
+
+        # Historical Price
+        fig_price.add_trace(go.Scatter(
+            x=hist_ds,
+            y=to_list(stock_data['historical_data']['y']),
+            mode='lines',
+            name='Historical Price',
+            line=dict(color='black', width=2)
+        ))
+
+        # Forecast
+        fig_price.add_trace(go.Scatter(
+            x=fcast_ds,
+            y=to_list(stock_data['full_forecast']['yhat']),
+            mode='lines',
+            name='Forecast',
+            line=dict(color='#1f77b4', width=2)
+        ))
+
+        # Uncertainty Interval
+        yhat_upper = to_list(stock_data['full_forecast']['yhat_upper'])
+        yhat_lower = to_list(stock_data['full_forecast']['yhat_lower'])
+        fig_price.add_trace(go.Scatter(
+            x=fcast_ds + fcast_ds[::-1],
+            y=yhat_upper + yhat_lower[::-1],
+            fill='toself',
+            fillcolor='rgba(31, 119, 180, 0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo="skip",
+            showlegend=False,
+            name='Uncertainty Interval'
+        ))
+
+        # Add vertical line for "Today"
+        date_now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        fig_price.add_vline(x=date_now_str, line_width=1, line_dash="dot", line_color="silver")
+        
+        # Changepoints
+        for changepoint in stock_data['model'].changepoints:
+            cp_str = pd.Timestamp(changepoint).strftime('%Y-%m-%d %H:%M:%S')
+            fig_price.add_vline(x=cp_str, line_width=1, line_dash="dot", line_color="lightsalmon", opacity=0.5)
+
+        # Significant Changepoints
+        signif_changepoint_threshold = 0.01
+        signif_changepoints = stock_data['model'].changepoints[np.abs(np.nanmean(
+            stock_data['model'].params['delta'], axis=0)) >= signif_changepoint_threshold] if len(stock_data['model'].changepoints) > 0 else []
+        for signif_changepoint in signif_changepoints:
+            scp_str = pd.Timestamp(signif_changepoint).strftime('%Y-%m-%d %H:%M:%S')
+            fig_price.add_vline(x=scp_str, line_width=2, line_dash="dot", line_color="red")
+
+        # Layout updates
+        layout_args = dict(
+            title=dict(text=f"{self.ticker.upper()} - Close Price & Forecast", font=dict(size=20)),
+            xaxis_title="Day (ds)",
+            yaxis_title="Price (y)",
+            template="plotly_white",
+            hovermode="x unified",
+            margin=dict(l=20, r=20, t=50, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+
+        # Limit Y axis to 0 if lower bound is negative (redundant with rangemode='tozero' but keeps safety)
+        if stock_data['full_forecast']['yhat_lower'].min() < 0:
+            layout_args['yaxis'] = dict(range=[0, stock_data['full_forecast']['yhat_upper'].max()])
+
+        fig_price.update_layout(**layout_args)
+
+        # 2. Components Graph (Manual Construction to ensure data integrity)
+        from plotly.subplots import make_subplots
+        
+        # Identify available components
+        fcst = stock_data['full_forecast']
+        available_components = []
+        if 'trend' in fcst.columns: available_components.append('trend')
+        if 'weekly' in fcst.columns: available_components.append('weekly')
+        if 'yearly' in fcst.columns: available_components.append('yearly')
+        
+        if available_components:
+            fig_components = make_subplots(
+                rows=len(available_components), 
+                cols=1, 
+                subplot_titles=[c.title() for c in available_components],
+                vertical_spacing=0.15 # Increased spacing
+            )
+            
+            for i, comp in enumerate(available_components):
+                if comp == 'trend':
+                    x_data = to_list(fcst['ds'], is_date=True)
+                    y_data = to_list(fcst['trend'])
+                    
+                    # Add Trend uncertainty band (trend_lower/upper)
+                    if 'trend_lower' in fcst.columns and 'trend_upper' in fcst.columns:
+                        t_upper = to_list(fcst['trend_upper'])
+                        t_lower = to_list(fcst['trend_lower'])
+                        fig_components.add_trace(
+                            go.Scatter(
+                                x=x_data + x_data[::-1],
+                                y=t_upper + t_lower[::-1],
+                                fill='toself',
+                                fillcolor='rgba(0, 114, 178, 0.2)',
+                                line=dict(color='rgba(255,255,255,0)'),
+                                hoverinfo="skip",
+                                showlegend=False,
+                                name='Trend Uncertainty'
+                            ),
+                            row=i+1, col=1
+                        )
+
+                    fig_components.add_trace(
+                        go.Scatter(
+                            x=x_data,
+                            y=y_data,
+                            name='Trend',
+                            mode='lines',
+                            line=dict(color='#0072B2', width=2)
+                        ),
+                        row=i+1, col=1
+                    )
+
+                elif comp == 'weekly':
+                    # Extract pure weekly component using synthetic dates (Sunday to Saturday)
+                    # Use a known Sunday (2017-01-01 was a Sunday)
+                    days = pd.date_range(start='2017-01-01', periods=7, freq='D')
+                    df_comp = pd.DataFrame({'ds': days})
+                    # Use the model's prediction logic for exact component extraction
+                    fcst_comp = stock_data['model'].predict(df_comp)
+                    
+                    days_order = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                    # Prophet's result might be in day names or numeric; predict returns the component directly
+                    y_vals = to_list(fcst_comp['weekly'])
+                    
+                    fig_components.add_trace(
+                        go.Scatter(
+                            x=days_order,
+                            y=y_vals,
+                            name='Weekly Seasonality',
+                            mode='lines',
+                            line=dict(color='#0072B2', width=2)
+                        ),
+                        row=i+1, col=1
+                    )
+                
+                elif comp == 'yearly':
+                    # Extract pure yearly component (Jan 1 to Dec 31)
+                    days = pd.date_range(start='2017-01-01', periods=366, freq='D')
+                    df_comp = pd.DataFrame({'ds': days})
+                    fcst_comp = stock_data['model'].predict(df_comp)
+                    
+                    y_x_labels = days.strftime('%B %d').tolist()
+                    y_y_vals = to_list(fcst_comp['yearly'])
+                    
+                    fig_components.add_trace(
+                        go.Scatter(
+                            x=list(range(len(y_x_labels))), 
+                            y=y_y_vals,
+                            name='Yearly Seasonality',
+                            mode='lines',
+                            line=dict(color='#0072B2', width=2),
+                            text=y_x_labels,
+                            hoverinfo="text+y"
+                        ),
+                        row=i+1, col=1
+                    )
+                    fig_components.update_xaxes(
+                        tickvals=list(range(0, len(y_x_labels), 30)),
+                        ticktext=[y_x_labels[k] for k in range(0, len(y_x_labels), 30)],
+                        row=i+1, col=1
+                    )
+
+                if comp != 'trend':
+                    fig_components.add_hline(y=0, row=i+1, col=1, line_dash="dash", line_color="gray")
+
+            fig_components.update_layout(
+                title=dict(text=f"{self.ticker.upper()} - Model Components (Interactive)", font=dict(size=20)),
+                height=300 * len(available_components) + 100,
+                template="plotly_white",
+                showlegend=False,
+                margin=dict(l=50, r=20, t=80, b=50)
+            )
+        else:
+            fig_components = go.Figure()
+            fig_components.update_layout(title="No components available")
+
+        # 3. MAPE Analysis
+        fig_mape = go.Figure()
+        
+        if stock_data['df_cross_validation'] is not None:
+             df_cv = stock_data['df_cross_validation'].copy()
+             # Calculate MAPE
+             df_cv['mape'] = np.abs((df_cv['y'] - df_cv['yhat']) / df_cv['y'])
+             # Calculate horizon
+             df_cv['horizon'] = df_cv['ds'] - df_cv['cutoff']
+             
+             # Clean data for MAPE
+             mape_x = df_cv['horizon'].dt.days.values.astype(int).tolist()
+             mape_y = to_list(df_cv['mape'])
+             mape_y = [None if math.isnan(v) or math.isinf(v) else v for v in mape_y]
+             
+             # Scatter plot of MAPE vs Horizon
+             fig_mape.add_trace(go.Scatter(
+                x=mape_x,
+                y=mape_y,
+                mode='markers',
+                marker=dict(color='gray', size=5, opacity=0.6),
+                name='Cross Validation Errors'
+             ))
+             
+             # Mean MAPE Line
+             if stock_data['df_performance'] is not None:
+                  df_p = stock_data['df_performance']
+                  p_x = df_p['horizon'].dt.days.values.astype(int).tolist()
+                  p_y = to_list(df_p['mape'])
+                  p_y = [None if math.isnan(v) or math.isinf(v) else v for v in p_y]
+                  
+                  fig_mape.add_trace(go.Scatter(
+                        x=p_x,
+                        y=p_y,
+                        mode='lines',
+                        line=dict(color='#0072B2', width=3),
+                        name='Mean MAPE'
+                  ))
+
+             fig_mape.update_layout(
+                title=dict(text=f"{self.ticker.upper()} - Cross Validation Error (MAPE) (Plotly)", font=dict(size=20)),
+                xaxis_title="Horizon (Days)",
+                yaxis_title="MAPE",
+                template="plotly_white",
+                margin=dict(l=50, r=20, t=50, b=50)
+             )
+        
+        # Clean dict helper (Simple now as we pre-converted)
+        def _clean_simple(obj):
+            if isinstance(obj, dict):
+                return {k: _clean_simple(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_clean_simple(x) for x in obj]
+            if isinstance(obj, (float, np.floating)):
+                if math.isnan(obj) or math.isinf(obj): return None
+                return float(obj)
+            return obj
+
+        fig_price_dict = _clean_simple(fig_price.to_dict())
+        fig_components_dict = _clean_simple(fig_components.to_dict())
+        fig_mape_dict = _clean_simple(fig_mape.to_dict())
+
+        # Standard serialization
+        graphJSON_price = json.dumps(fig_price_dict, cls=plotly.utils.PlotlyJSONEncoder)
+        graphJSON_components = json.dumps(fig_components_dict)
+        graphJSON_mape = json.dumps(fig_mape_dict)
+
+        # Add Plotly JSONs to fig_paths
+        fig_paths['plotly_price'] = graphJSON_price
+        fig_paths['plotly_components'] = graphJSON_components
+        fig_paths['plotly_mape'] = graphJSON_mape
 
         return fig_paths
