@@ -2,11 +2,9 @@ import yfinance as yf
 import pandas as pd
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
-from prophet.plot import plot_plotly, plot_components_plotly
 from datetime import datetime
 import numpy as np
 from diskcache import FanoutCache
-# from diskcache import Cache
 
 import os.path
 import json
@@ -14,15 +12,12 @@ import json
 import time
 import math
 import plotly.graph_objs as go
-import plotly.utils
 
 class StockPredictor:
     def __init__(self, ticker='', periods=365):
         self.ticker = ticker
 
         self.cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
-        # self.cache = FanoutCache(directory='./tmp', timeout=20, eviction_policy='none')
-        # self.cache = Cache(directory='./tmp')
         self.cache.clear()
         self.cache_expire = 60 * 60 * 12 # 12 hours
 
@@ -201,7 +196,7 @@ class StockPredictor:
         info = stock_data.info
         info['currentPrice'] = stock_data.history('1d')['Close'][0]
         # info['longBusinessSummary'] = info['longBusinessSummary'].value.decode('utf-8','ignore').encode("utf-8")
-
+        
         dividends = stock_data.dividends
 
         # For Polkadot, request newer data as old data has some weird prices.
@@ -742,9 +737,6 @@ class StockPredictor:
         ticker - Is the ticker/quote of the stock as defined by Yahoo Finance
         stock_data - Dictionary containing information about the stock
         """
-        # Save graphs
-        fig_location = '/static/img/figures/'
-        fig_paths = {}
         
         # Helper to convert to clean serializable list
         def to_list(vals, is_date=False):
@@ -872,10 +864,8 @@ class StockPredictor:
              
              fig_mape.update_layout(title=dict(text=f"{self.ticker.upper()} - Cross Validation MAPE", font=dict(size=20)), xaxis_title="Horizon (Days)", yaxis_title="MAPE", template="plotly_white", margin=dict(l=50, r=20, t=80, b=50))
 
-        # Robust serialization
         return {
             'plotly_price': fig_price.to_json(),
             'plotly_components': fig_components.to_json(),
-            'plotly_mape': fig_mape.to_json(),
-            **{k:v for k,v in fig_paths.items() if not k.startswith('plotly')}
+            'plotly_mape': fig_mape.to_json()
         }

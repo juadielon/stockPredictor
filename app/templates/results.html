@@ -90,8 +90,10 @@ endblock %}
           <p>Forecasting stocks for <b>{{ ticker|upper }}</b> for the next <b>{{ params_info['periods'] }} days</b>.</p>
           {% if days|int > params_info['periods'] %}
           <div class="alert alert-warning py-2">
-            <i class="bi bi-exclamation-triangle me-2"></i> {{ days }} days requested, but limited to historical data
-            allowance.
+            <i class="bi bi-exclamation-triangle me-2"></i> {{ days }} days requested, but limited to {{
+            params_info['periods'] }} days.
+            The forecast period is capped at 36% of available historical data ({{ params_info['historical_periods'] }}
+            days) to maintain accuracy.
           </div>
           {% endif %}
         </div>
@@ -168,6 +170,16 @@ endblock %}
     <div class="card-header bg-white py-3">
       <h3 class="h5 fw-bold mb-0">Model Components</h3>
     </div>
+    <div class="card-body p-3 bg-light border-bottom">
+      <p class="mb-0 small text-secondary">
+        Breakdown of the time series into its individual components. <br>
+        <strong>Trend:</strong> The long-term growth or decline pattern. <br>
+        <strong>Weekly:</strong> Cyclic patterns that repeat every week (e.g., stocks may show different behavior on
+        Mondays vs Fridays). <br>
+        <strong>Yearly:</strong> Seasonal patterns that repeat annually (e.g., retail stocks performing better during
+        holiday seasons).
+      </p>
+    </div>
     <div class="card-body p-0">
       <div id="components-chart" class="w-100" style="height: 1200px;"></div>
     </div>
@@ -177,6 +189,14 @@ endblock %}
   <div class="card border-0 shadow-sm mb-5">
     <div class="card-header bg-white py-3">
       <h3 class="h5 fw-bold mb-0">Cross Validation Metrics (MAPE)</h3>
+    </div>
+    <div class="card-body p-3 bg-light border-bottom">
+      <p class="mb-0 small text-secondary">
+        Mean Absolute Percentage Error (MAPE) estimates the model's accuracy. <br>
+        The <strong>dots</strong> represent the error for each individual cross-validation forecast. <br>
+        The <strong>line</strong> shows the average error across all forecasts for a given horizon (number of days into
+        the future). Lower is better.
+      </p>
     </div>
     <div class="card-body p-0">
       <div id="mape-chart" class="w-100" style="height: 600px;"></div>
