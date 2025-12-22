@@ -664,13 +664,22 @@ class StockPredictor:
         model.add_country_holidays(country_name='AU')
         model.fit(df_historical_data)
 
-        total_future = model.make_future_dataframe(self.periods, freq='D')
+        # Start forecast from the last historical date
+        last_ds = df_historical_data['ds'].max()
+        total_future = pd.DataFrame({'ds': pd.date_range(start=last_ds, periods=self.periods, freq='D')})
 
         #total_future['floor'] = 0
         #total_future['cap'] = 1.2 * df_historical_data['y'].max()
 
         # Check if there is data only on business days and if so remove weekends in the future
-        if all(df_historical_data['ds'].dt.dayofweek.unique() < 5):
+        # For ASX tickers (.ax), always treat as stock markets (remove weekends/holidays)
+        # For others, check if historical data includes weekends
+        is_asx_ticker = self.ticker.endswith('.ax')
+        if is_asx_ticker:
+            has_weekend_data = False  # Force stock-like behavior
+        else:
+            has_weekend_data = any(df_historical_data['ds'].dt.dayofweek >= 5)
+        if not has_weekend_data:
             # As the stock exchange is closed on weekends, remove weekends in the future
             future_days = total_future[total_future['ds'].dt.dayofweek < 5]
         else:
@@ -682,6 +691,9 @@ class StockPredictor:
             (len(total_future) - len(future_days))
 
         full_forecast = model.predict(future_days)
+
+        # Predict on historical data for components
+        hist_forecast = model.predict(df_historical_data)
 
         #model.history['y'] = np.exp(model.history['y']) -1
         #df_historical_data['y'] = np.exp(df_historical_data['y']) -1
@@ -695,6 +707,7 @@ class StockPredictor:
         result = {
             'historical_data': df_historical_data,
             'full_forecast': full_forecast,
+            'hist_forecast': hist_forecast,
             'forecast': forecast,
             'model': model,
             'params_info': {
@@ -818,6 +831,9 @@ class StockPredictor:
 
         # Data reuse
         fcast_ds = to_list(stock_data['full_forecast']['ds'], is_date=True)
+        hist_ds = to_list(stock_data['hist_forecast']['ds'], is_date=True)
+        combined_ds = hist_ds + fcast_ds
+        combined_trend = to_list(stock_data['hist_forecast']['trend']) + to_list(stock_data['full_forecast']['trend'])
 
         for i, comp in enumerate(comps):
             if comp == 'trend':
@@ -829,7 +845,7 @@ class StockPredictor:
                                                       fillcolor='rgba(0, 114, 178, 0.2)', line=dict(color='rgba(0,0,0,0)'), 
                                                       hoverinfo="skip", showlegend=False, name='Trend Uncertainty'), row=i+1, col=1)
                 
-                fig_components.add_trace(go.Scatter(x=fcast_ds, y=to_list(stock_data['full_forecast']['trend']), name='Trend', line=dict(color='#0072B2', width=2.5)), row=i+1, col=1)
+                fig_components.add_trace(go.Scatter(x=combined_ds, y=combined_trend, name='Trend', line=dict(color='#0072B2', width=2.5)), row=i+1, col=1)
             
             elif comp == 'weekly':
                 # Exact value parity using synthetic Sunday-start baseline
