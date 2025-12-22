@@ -70,12 +70,12 @@ class StockPredictor:
 
         for index in range(len(self.cache_obj)):
             self.cache.set(
-                self.cache_obj[index]['ticker'] + '_best_changepoint_prior_scale',
-                self.cache_obj[index]['changepoint_prior_scale'],
+                self.cache_obj[index]['ticker'] + '_best_params',
+                {'cps': self.cache_obj[index]['changepoint_prior_scale'], 'sps': self.cache_obj[index].get('seasonality_prior_scale', 10.0)},
                 expire=self.cache_expire
             )
 
-    def write_cache(self, changepoint_prior_scale):
+    def write_cache(self, changepoint_prior_scale, seasonality_prior_scale):
         found = False
 
         # Prepopulate self.cache_obj in case there are multiple concurrent runs
@@ -85,9 +85,10 @@ class StockPredictor:
             if self.cache_obj[index]['ticker'] == self.ticker:
                 found = True
                 self.cache_obj[index]['changepoint_prior_scale'] = changepoint_prior_scale
+                self.cache_obj[index]['seasonality_prior_scale'] = seasonality_prior_scale
 
         if not found:
-            self.cache_obj.append({'ticker': self.ticker, 'changepoint_prior_scale': changepoint_prior_scale})
+            self.cache_obj.append({'ticker': self.ticker, 'changepoint_prior_scale': changepoint_prior_scale, 'seasonality_prior_scale': seasonality_prior_scale})
 
         with open(self.cache_obj_file_path, 'w') as json_file:
             #json.dump(self.cache_obj, json_file, indent=4)
@@ -112,16 +113,16 @@ class StockPredictor:
         periods - is the number of days into the future to forecast
         """
 
-        cache_changepoint_prior_scale = self.ticker + '_best_changepoint_prior_scale'
-        if not cache_changepoint_prior_scale in self.cache:
-            print('No optimal changepoint_prior_scale was found in cache')
-            optimal_forecast = self.make_forecast_finding_best_changepoint_prior_scale2()
+        cache_key = self.ticker + '_best_params'
+        if not cache_key in self.cache:
+            print('No optimal params (changepoint_prior_scale and seasonality_prior_scale) found in cache')
+            optimal_forecast = self.make_forecast_finding_best_params()
             print('Results were for ticker', self.ticker)
-            self.write_cache(optimal_forecast['changepoint_prior_scale'])
+            self.write_cache(optimal_forecast['changepoint_prior_scale'], optimal_forecast['seasonality_prior_scale'])
             self.cache.set(
-                cache_changepoint_prior_scale,
-                optimal_forecast['changepoint_prior_scale'],
-                expire = self.cache_expire
+                cache_key,
+                {'cps': optimal_forecast['changepoint_prior_scale'], 'sps': optimal_forecast['seasonality_prior_scale']},
+                expire=self.cache_expire
             )
 
             # Calculate deltas
@@ -130,6 +131,7 @@ class StockPredictor:
 
             # Ensure df_performance is in forecast_info for make_graphs
             optimal_forecast['forecast_info']['df_performance'] = optimal_forecast['diagnostics']['df_performance']
+            optimal_forecast['forecast_info']['df_cross_validation'] = optimal_forecast['diagnostics']['df_cross_validation']
 
             fig_paths = self.make_graphs(optimal_forecast['forecast_info'])
             result = {
@@ -138,20 +140,15 @@ class StockPredictor:
                 'performance': optimal_forecast['diagnostics']['df_performance']
             }
         else:
-            print('Using old changepoint_prior_scale found in cache')
-            changepoint_prior_scale = self.cache.get(cache_changepoint_prior_scale)
+            print('Using old params (changepoint_prior_scale and seasonality_prior_scale) found in cache')
+            params = self.cache.get(cache_key)
+            changepoint_prior_scale = params['cps']
+            seasonality_prior_scale = params['sps']
 
-            # Test the model using 25% of historical data as the horizon
-            # TODO review why all of a sudden I have to do this for some tickers as I'm getting
-            # ValueError: Less data than horizon after initial window. Make horizon or initial shorter.
-            #horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
-            testPercentage = 0.25
-            if self.ticker in ['ada-aud', 'btc-aud', 'doge-aud', 'dot-aud', 'eth-aud', 'ftm-aud', 'ksm-aud', 'luna1-aud', 'matic-aud', 'sol-aud']:
-                testPercentage = 0.24
+            # Test the model using up to 25% of historical data as the horizon, max 365 days
+            horizon_days = min(365, int(len(self.stock_info['historical_data']) * 0.25))
 
-            horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
-
-            forecast_info = self.make_forecast(changepoint_prior_scale)
+            forecast_info = self.make_forecast(changepoint_prior_scale, seasonality_prior_scale)
             forecast_info['change_point_prior_scale'] = changepoint_prior_scale
             forecast_info['params_info']['horizon_days'] = horizon_days
 
@@ -194,7 +191,7 @@ class StockPredictor:
         stock_data = yf.Ticker(self.ticker)
 
         info = stock_data.info
-        info['currentPrice'] = stock_data.history('1d')['Close'][0]
+        info['currentPrice'] = stock_data.history('1d')['Close'].iloc[0]
         # info['longBusinessSummary'] = info['longBusinessSummary'].value.decode('utf-8','ignore').encode("utf-8")
         
         dividends = stock_data.dividends
@@ -208,10 +205,19 @@ class StockPredictor:
             # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
             historical_data = stock_data.history('max', auto_adjust=True)
 
-        # Remove outliers. That is any close price value that is greater than 8 standard deviations
-        outliers = historical_data[np.abs(historical_data.Close-historical_data.Close.mean()) > (8*historical_data.Close.std())].Close
-        print('Close price values removed as outliers from historical data:', outliers)
-        historical_data = historical_data[np.abs(historical_data.Close-historical_data.Close.mean()) <= (8*historical_data.Close.std())]
+        # Remove outliers using IQR method
+        # Q1 = historical_data['Close'].quantile(0.25)
+        # Q3 = historical_data['Close'].quantile(0.75)
+        # IQR = Q3 - Q1
+        # lower_bound = Q1 - 2.5 * IQR
+        # upper_bound = Q3 + 2.5 * IQR
+        # print(f"DEBUG: Outlier bounds: lower={lower_bound}, upper={upper_bound}")
+        # print(f"DEBUG: Rows before outlier removal: {len(historical_data)}")
+        # outliers = historical_data[(historical_data['Close'] < lower_bound) | (historical_data['Close'] > upper_bound)]['Close']
+        # print('Close price values removed as outliers from historical data:', outliers)
+        # historical_data = historical_data[(historical_data['Close'] >= lower_bound) & (historical_data['Close'] <= upper_bound)]
+        # print(f"DEBUG: Rows after outlier removal: {len(historical_data)}")
+        # print(f"DEBUG: Last historical ds: {historical_data.index.max()}")
 
         return {
             'info': info,
@@ -274,11 +280,12 @@ class StockPredictor:
         print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
         return result
 
-    def make_forecast_finding_best_changepoint_prior_scale2(self):
+    def make_forecast_finding_best_params(self):
         """
-        Find the best changepoint prior scale to use, returning the forecast.
+        Find the best changepoint_prior_scale and seasonality_prior_scale using grid search.
         According to the fphropet manual, the changepoint prior scale is probably the most
-        impactful parameter: "It determines the flexibility of the trend, and in particular
+        impactful parameter, and the seasonality prior scale is also important.
+        The changepoint prior scale: "It determines the flexibility of the trend, and in particular
         how much the trend changes at the trend changepoints. If it is too small, the trend
         will be underfit and variance that should have been modeled with trend changes will
         instead end up being handled with the noise term. If it is too large, the trend will
@@ -287,66 +294,49 @@ class StockPredictor:
         a range of [0.001, 0.5] would likely be about right. Parameters like this
         (regularization penalties; this is effectively a lasso penalty) are often tuned on a
         log scale."
-
-        This method evaluates all point prior scale from 0.01 until 0.5 with a 0.01 step,
+        The seasonality prior scale: "Similar to the changepoint prior scale, this parameter
+        controls the flexibility of the seasonality model. Larger values allow the seasonality
+        to fit larger seasonal fluctuations, smaller values dampen the seasonality. The
+        default of 10.0 works for many time series, but this could be tuned; a range of
+        [0.1, 50.0] would likely be about right."
+        This method evaluates a changepoint prior scale from 0.01 until 0.5 with a 0.01 step,
         choosing the value producing the minimum Mean Absolute Percent Error (MAPE). As it
-        evaluates every sinlge point it finds the absolute minimum in the range evaluated
+        evaluates every single point it finds the absolute minimum in the range evaluated
         at the cost of speed.
-
         Inputs:
         historical_data - is the historical stock data
         periods - is the number of days to forecast
         """
-
         start = time.time()
-        # Test the model using 25% of historical data as the horizon
-        # TODO review why all of a sudden I have to do this for some tickers as I'm getting
-        # ValueError: Less data than horizon after initial window. Make horizon or initial shorter.
-        #horizon_days = int(len(self.stock_info['historical_data']) * 0.25)
-        testPercentage = 0.25
-        if self.ticker in ['ada-aud', 'btc-aud', 'doge-aud', 'dot-aud', 'eth-aud', 'ftm-aud', 'ksm-aud', 'luna1-aud', 'matic-aud', 'sol-aud']:
-            testPercentage = 0.24
+        # Test the model using up to 25% of historical data as the horizon, max 365 days
+        horizon_days = min(365, int(len(self.stock_info['historical_data']) * 0.25))
 
-        horizon_days = int(len(self.stock_info['historical_data']) * testPercentage)
+        # Define ranges
+        changepoint_scales = np.arange(0.01, 0.51, 0.01) # From 0.01 to 0.5 with a 0.01 step
+        seasonality_scales = [0.1, 1.0, 10.0, 50.0]  # Common values
 
-        stats = []
         result_min_mape = {'mape': 9999999}
 
-        # Loop from 0.01 to 0.5. n.arange doesn't include the stop, but the element before.
-        for changepoint_prior_scale in np.arange(0.01, 0.51, 0.01):
-            # for changepoint_prior_scale in np.arange(0.01, 0.02, 0.01):
-            forecast_info = self.make_forecast(changepoint_prior_scale)
-            forecast_info['params_info']['horizon_days'] = horizon_days
+        for cps in changepoint_scales:
+            for sps in seasonality_scales:
+                forecast_info = self.make_forecast(cps, sps)
+                forecast_info['params_info']['horizon_days'] = horizon_days
 
-            diagnostics = self.diagnose_model(horizon_days, forecast_info['model'])
-            forecast_info['df_cross_validation'] = diagnostics['df_cross_validation']
-            mape = diagnostics['df_performance'].tail(1).mape.values[0]
-            print('Evaluating ' + self.ticker + ' with changepoint_prior_scale=', changepoint_prior_scale)
+                diagnostics = self.diagnose_model(horizon_days, forecast_info['model'])
+                mape = diagnostics['df_performance'].tail(1).mape.values[0]
 
-            stat = {
-                'changepoint_prior_scale': changepoint_prior_scale,
-                'mape': mape
-            }
-            stats.append(stat)
-            print(pd.DataFrame(stats).reindex(
-                columns=['changepoint_prior_scale', 'mape']))
+                print(self.ticker + f' - cps={cps}, sps={sps}, mape={mape}')
 
-            if mape < result_min_mape['mape']:
-                result_min_mape = {
-                    'forecast_info': forecast_info,
-                    'diagnostics': diagnostics,
-                    'changepoint_prior_scale': changepoint_prior_scale,
-                    'mape': mape
-                }
+                if mape < result_min_mape['mape']:
+                    result_min_mape = {
+                        'forecast_info': forecast_info,
+                        'diagnostics': diagnostics,
+                        'changepoint_prior_scale': cps,
+                        'seasonality_prior_scale': sps,
+                        'mape': mape
+                    }
 
-            print('min mape so far =', result_min_mape['mape'])
-            print('with changepoint_prior_scale=',
-                result_min_mape['changepoint_prior_scale'])
-            print('time=', time.time() - start)
-
-        print('best changepoint_prior_scale=',
-            result_min_mape['changepoint_prior_scale'])
-        print('min mape=', result_min_mape['mape'])
+        print(f'Best: cps={result_min_mape["changepoint_prior_scale"]}, sps={result_min_mape["seasonality_prior_scale"]}, mape={result_min_mape["mape"]}')
         return result_min_mape
 
     def make_forecast_finding_best_changepoint_prior_scale3(self):
@@ -625,7 +615,7 @@ class StockPredictor:
 
         return result_min_mape
 
-    def make_forecast(self, changepoint_prior_scale=0.05):
+    def make_forecast(self, changepoint_prior_scale=0.05, seasonality_prior_scale=10.0):
         """
         Forecast the price of the stock on a future number of days
         Inputs:
@@ -642,10 +632,17 @@ class StockPredictor:
         # Set minimum posible value
         # df_historical_data['floor'] = 0
 
+        # Determine if yearly seasonality should be enabled based on data length
+        data_length = len(df_historical_data)
+        enable_yearly_seasonality = data_length >= 366
+
         # Create a Prophet model
         # As there is one single closing price daily, disable the daily seasonality
         model = Prophet(
             daily_seasonality=False,
+            weekly_seasonality=True,
+            yearly_seasonality=enable_yearly_seasonality,
+            seasonality_prior_scale=seasonality_prior_scale,
             changepoint_prior_scale=changepoint_prior_scale
         )
 
@@ -664,7 +661,7 @@ class StockPredictor:
         #    changepoint_prior_scale=changepoint_prior_scale
         #)
 
-        # model.add_country_holidays(country_name='AU')
+        model.add_country_holidays(country_name='AU')
         model.fit(df_historical_data)
 
         total_future = model.make_future_dataframe(self.periods, freq='D')
@@ -705,6 +702,7 @@ class StockPredictor:
                 'historical_periods': len(self.stock_info['historical_data']),
                 'weekday_periods': future_weekdays_count,
                 'changepoint_prior_scale': changepoint_prior_scale,
+                'seasonality_prior_scale': seasonality_prior_scale
             }
         }
 
@@ -720,9 +718,16 @@ class StockPredictor:
         """
 
         horizon = str(horizon_days) + ' days'
-        print('horizon',horizon)
+        print('horizon', horizon)
 
-        df_cross_validation = cross_validation(model, horizon=horizon, parallel='processes')
+        # Adaptive initial: at least the max seasonality period (366 for yearly), but not exceeding data constraints
+        data_length = len(self.stock_info['historical_data'])
+        max_seasonality_period = 366  # For yearly seasonality
+        initial_days = min(data_length - horizon_days - 1, max(max_seasonality_period, max(1, int(horizon_days * 0.5))))
+        initial = str(initial_days) + ' days'
+        print('initial', initial)
+
+        df_cross_validation = cross_validation(model, horizon=horizon, initial=initial, parallel='processes')
 
         df_performance = performance_metrics(df_cross_validation)
         # print(df_performance)
