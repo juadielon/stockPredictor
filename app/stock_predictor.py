@@ -176,6 +176,40 @@ class StockPredictor:
 
         self.result = result
 
+    def get_market_country(self):
+        """
+        Determine market country for holiday calculations based on ticker and exchange info.
+        Returns a country code (e.g., 'AU', 'US') or None for 24/7 markets like crypto.
+        """
+        ticker_lower = self.ticker.lower()
+        
+        # Crypto or forex tickers typically trade 24/7 without market holidays
+        if any(c in ticker_lower for c in ['-usd', '-aud', '-eur', '-gbp', '=x']):
+            return None
+            
+        # ASX Australian Securities Exchange
+        if ticker_lower.endswith('.ax'):
+            return 'AU'
+            
+        # Check exchange info from Yahoo Finance if available
+        info = getattr(self, 'stock_info', {}).get('info', {})
+        exchange = info.get('exchange', '').upper()
+        
+        # Australian exchanges
+        if exchange in ['ASX', 'ASX - ALL MARKETS']:
+            return 'AU'
+            
+        # UK
+        if ticker_lower.endswith('.l') or exchange in ['LSE']:
+            return 'GB'
+            
+        # Canada
+        if ticker_lower.endswith('.to') or ticker_lower.endswith('.v') or exchange in ['TSX', 'TORONTO']:
+            return 'CA'
+            
+        # Default for US equities (NYSE, NASDAQ, AMEX, etc.) or unknown
+        return 'US'
+
     #@cache.memoize(typed=True, expire=43200)  # cache for 12 hours
     def get_stock_info(self):
         """
@@ -661,7 +695,13 @@ class StockPredictor:
         #    changepoint_prior_scale=changepoint_prior_scale
         #)
 
-        model.add_country_holidays(country_name='AU')
+        market_country = self.get_market_country()
+        if market_country:
+            try:
+                model.add_country_holidays(country_name=market_country)
+            except Exception as e:
+                print(f"Warning: could not add holidays for country {market_country}: {e}")
+
         model.fit(df_historical_data)
 
         # Start forecast from the last historical date
@@ -672,11 +712,11 @@ class StockPredictor:
         #total_future['cap'] = 1.2 * df_historical_data['y'].max()
 
         # Check if there is data only on business days and if so remove weekends in the future
-        # For ASX tickers (.ax), always treat as stock markets (remove weekends/holidays)
+        # For ASX tickers (.ax) or market country tickers, treat as stock markets (remove weekends)
         # For others, check if historical data includes weekends
         is_asx_ticker = self.ticker.endswith('.ax')
-        if is_asx_ticker:
-            has_weekend_data = False  # Force stock-like behavior
+        if is_asx_ticker or market_country is not None:
+            has_weekend_data = False  # Stock market behaviour
         else:
             has_weekend_data = any(df_historical_data['ds'].dt.dayofweek >= 5)
         if not has_weekend_data:

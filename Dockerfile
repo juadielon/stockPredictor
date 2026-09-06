@@ -18,7 +18,8 @@ RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
     && pip install prophet \
     && pip install diskcache plotly \
-    && pip install gunicorn
+    && pip install gunicorn \
+    && pip install pytest pytest-mock
 
 # Set up Nginx
 RUN rm /etc/nginx/sites-enabled/default
@@ -33,6 +34,9 @@ COPY gunicorn_conf.py /app/gunicorn_conf.py
 # Copy application code
 WORKDIR /app
 COPY . /app
+
+# Run unit tests before finalising the image
+RUN pytest tests/
 
 # Set environment variables for static files (used by the app logic if needed, though Nginx handles serving now)
 ENV STATIC_URL=/static
