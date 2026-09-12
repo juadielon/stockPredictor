@@ -10,31 +10,57 @@ Time series analysis to predict future stock prices.
 - If the end date is not a trading day, the forecast ends on the previous trading day. Requests with no future trading days are rejected.
 - Returns compare the predicted final price with the last historical close adjusted for splits and dividends. The annualised figure compounds that change over a year; it is not a separate prediction or a total investment return.
 
-**Limitations:** Data may be stale or include an unfinished day's price. Saved model settings may be outdated. The forecasts have not yet been shown to beat simply using the latest price.
+**Limitations:** Data may be stale or include an unfinished day's price. Cached forecasts can be up to 12 hours old. The forecasts have not yet been shown to beat simply using the latest price.
 
 ## How to run
 
-To install everything that is required, the first time you run it, make sure Docker has access to at least 2.5GB of memory
+Start Docker and give it at least 2.5 GB of memory. Open a terminal in the project folder.
 
-To install and run the container simply do:
+The Docker commands below work in **PowerShell and Bash**. Run them one at a time and only continue if each succeeds. You do not need Python installed on your computer.
 
-```
-./start.sh
-```
+If you use **Git Bash on Windows**, run `export MSYS_NO_PATHCONV=1` first to prevent it from changing Docker paths. This is not needed in PowerShell or Linux/WSL Bash.
+
+1. Build the app image. The build also runs the tests.
+
+    ```sh
+    docker build -t stock_predictor .
+    ```
+
+2. Start the app. Keep the quotes around the mount argument so paths with spaces work.
+
+    ```sh
+    docker run -d --name stock_predictor -p 80:80 --mount "type=bind,source=${PWD},target=/app" stock_predictor
+    ```
 
 Then visit http://localhost
 
+If a container named `stock_predictor` already exists, follow the rebuild steps below. If port 80 is busy, use `-p 8083:80` and visit http://localhost:8083 instead.
+
 ## Update after code changes
 
-The application is configured to automatically reload when code changes are detected (Hot Reloading). You do not need to manually restart the service for Python code changes.
+Python code changes reload automatically when you run the app with the project folder mounted as shown above.
 
 To restart the existing container without rebuilding it, use:
 
-```
-./restart.sh
+```sh
+docker restart stock_predictor
 ```
 
-Changes to dependencies or the Dockerfile require rebuilding the image and recreating the app container; a restart alone will not apply them.
+After changing dependencies or the Dockerfile, rebuild first. **Only continue if the build succeeds:**
+
+```sh
+docker build -t stock_predictor .
+```
+
+Then replace the existing app container. This briefly stops the app but leaves the project files and saved forecasts on your computer unchanged.
+
+```sh
+docker stop stock_predictor
+docker rm stock_predictor
+docker run -d --name stock_predictor -p 80:80 --mount "type=bind,source=${PWD},target=/app" stock_predictor
+```
+
+Keep any custom port mapping you used when first starting the app.
 
 ## Run tests in Docker
 
@@ -56,41 +82,93 @@ Repeat both steps after code or dependency changes. The build may download packa
 
 ## Useful commands
 
-Access the docker container
+Open a Bash terminal inside the running container:
 
 ```
 docker exec -it stock_predictor bash
 ```
 
-Restart nginx
+Reload nginx from your usual terminal:
 
-```
-service nginx reload
-or
-supervisorctl restart nginx
+```sh
+docker exec stock_predictor nginx -s reload
 ```
 
-## Scripts
+Run tests in the running app container:
+
+```sh
+docker exec stock_predictor pytest tests/ -v
+```
+
+## Refresh saved forecasts
+
+The app container must be running. Choose one command; these are alternatives, not steps.
+
+Refresh all saved tickers for 365 days:
+
+```sh
+docker exec stock_predictor flask --app app preload
+```
+
+Refresh all saved tickers for 90 days:
+
+```sh
+docker exec stock_predictor flask --app app preload --days 90
+```
+
+Refresh only selected tickers:
+
+```sh
+docker exec stock_predictor flask --app app preload --days 90 --ticker ndq.ax --ticker btc-usd
+```
+
+Refresh reuses model settings. To search for new settings too, add `--retune`. This is much slower: it tests 200 parameter combinations per ticker.
+
+```sh
+docker exec stock_predictor flask --app app preload --days 90 --ticker ndq.ax --retune
+```
+
+A 90-day refresh prepares 90-day requests, not every possible forecast period. Without `--ticker`, it includes configured tickers and those with a previous successful forecast.
+
+Only one batch runs at a time. A failed ticker does not stop the others. The command prints a final summary and exits with a non-zero status if any ticker failed. The old `/preload` URL returns HTTP 410 and does not start work.
+
+## Optional Bash scripts
+
+These `.sh` shortcuts require Bash; they do not run directly in PowerShell. The Docker commands above work in either shell. On Windows, you can use WSL with Docker integration enabled for the scripts.
 
 ### `./start.sh`
-Builds the docker image, removes any previous container instances, and runs the new container on port 80. It also prunes unused docker system resources.
+Builds and starts the app on port 80. **Warning:** this older shortcut also deletes unused Docker resources across your computer, not just this project. Prefer the commands under "How to run".
 
 ### `./restart.sh`
 Restarts the `stock_predictor` container. Use this if you want to restart the application without rebuilding the image.
 
 ### `./preload.sh`
-Triggers the pre-calculation of forecasts for tickers defined in the cache configuration. It sends a request to the `/preload` endpoint and follows the logs to show progress.
+Refreshes saved forecasts inside the running `stock_predictor` container. It reuses model settings, prints progress and exits when finished. It no longer calls a web endpoint.
+
+```sh
+./preload.sh --days 90 --ticker ndq.ax --ticker btc-usd
+```
+
+It accepts the same options as the Docker preload command above.
 
 ### `./test.sh`
 Executes the unit test suite inside the running container using `pytest`. Note that unit tests are also automatically executed inside Docker as a pre-build gate during `docker build` (in `./start.sh`).
 
 
-## Cache Configuration
+## Saved forecasts and settings
+
+Forecasts, diagnostics and charts are stored in `tmp/forecasts-v2/`. A matching ticker and requested horizon can reuse the saved result for up to 12 hours without downloading data or fitting the model again. Preload forces a refresh even within that period.
+
+Model settings expire after 30 days. Refresh uses suitable saved settings or Prophet defaults; only `--retune` runs the parameter search. The results page shows which source was used. Expiry is based on when settings were saved, not when they were last read.
+
+If refresh fails, the app can show the last successful forecast with a warning. These fallback results are kept for up to seven days, subject to cache eviction. Cached quotes and forecasts retain their original timestamps. Cache age does not guarantee that Yahoo's data is current; new prices are checked on refresh, not on a cache hit.
+
+The cache stores the model version, data cutoff and a fingerprint of the downloaded history. Runtime cache files are excluded from Git and Docker images. Keep `tmp/` mounted when recreating the container to retain saved results; the existing start script mounts the project folder.
 
 ### `tmp/tickers_change_point_prior_scale.json`
-This file contains a list of tickers and their pre-calculated optimal `changepoint_prior_scale` parameters. The application uses this file to:
-1.  Speed up forecasts by using cached parameters instead of recalculating them.
-2.  Define the list of tickers to cache when running `./preload.sh`.
+This is the configured ticker list. Existing parameter values are imported once into the new cache and labelled `legacy`, with no known tuning date. They expire 30 days after import; rereading the file does not extend that period. To replace those settings, run preload with `--retune`.
+
+The app does not rewrite this file. Newly requested tickers are remembered separately after a successful forecast. The old cache files are left untouched. A ticker entry without parameters uses Prophet defaults until retuned.
 
 Example structure:
 ```json
