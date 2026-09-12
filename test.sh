@@ -1,3 +1,3 @@
-#!/bin/bash
-# Run test suite inside the docker container
-docker exec -it stock_predictor pytest tests/ -v
+#!/usr/bin/env bash
+set -eu
+exec docker exec stock_predictor pytest tests/ -v "$@"

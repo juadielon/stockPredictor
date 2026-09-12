@@ -1,3 +1,3 @@
-#!/bin/bash
-docker stop stock_predictor \
-&& docker start stock_predictor
+#!/usr/bin/env bash
+set -eu
+exec docker restart stock_predictor
