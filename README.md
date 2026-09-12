@@ -60,7 +60,7 @@ docker rm stock_predictor
 docker run -d --name stock_predictor -p 80:80 --mount "type=bind,source=${PWD},target=/app" stock_predictor
 ```
 
-Keep any custom port mapping you used when first starting the app.
+Keep any custom port mapping you used when first starting the app. If the new container fails to start, the old one is not restored automatically; fix the reported error before trying again.
 
 ## Run tests in Docker
 
@@ -78,7 +78,7 @@ Run these commands from the project folder with Docker running. They do not stop
     docker run --rm --network none --entrypoint pytest stock_predictor:test tests/ -p no:cacheprovider -q
     ```
 
-Repeat both steps after code or dependency changes. The build may download packages; the second step uses local test data only. These tests check that the code works, not how accurately it predicts real prices.
+Repeat both steps after code or dependency changes. Docker may reuse a cached test step if its inputs have not changed; the second command always runs the tests. The build may download packages; the second step uses local test data only. These tests check that the code works, not how accurately it predicts real prices.
 
 ## Useful commands
 
@@ -134,10 +134,32 @@ Only one batch runs at a time. A failed ticker does not stop the others. The com
 
 ## Optional Bash scripts
 
-These `.sh` shortcuts require Bash; they do not run directly in PowerShell. The Docker commands above work in either shell. On Windows, you can use WSL with Docker integration enabled for the scripts.
+These `.sh` shortcuts require Bash; they do not run directly in PowerShell. On Windows, use Git Bash with Docker Desktop or WSL with Docker integration enabled. The direct Docker commands above work in PowerShell too.
+
+Run the examples from the project folder. If executable permissions are unavailable, use `bash ./start.sh` (or the corresponding script name).
 
 ### `./start.sh`
-Builds and starts the app on port 80. **Warning:** this older shortcut also deletes unused Docker resources across your computer, not just this project. Prefer the commands under "How to run".
+Builds the image, then creates or replaces the `stock_predictor` container on port 80. A failed build leaves the existing app running. Replacement briefly stops the app; if startup fails afterwards, there is no automatic rollback.
+
+The script locates the project folder itself, mounts it at `/app` and keeps saved forecasts on your computer. It handles Git Bash path conversion automatically and uses Docker's default DNS. By default, it removes only the existing `stock_predictor` container.
+
+To use another host port:
+
+```sh
+HOST_PORT=8083 ./start.sh
+```
+
+Then visit http://localhost:8083. Supply the same `HOST_PORT` each time you recreate the container; otherwise it defaults to 80. Values must be integers from 1 to 65535. Restarting an existing container keeps its port mapping.
+
+To also remove stopped containers after successful startup:
+
+```sh
+bash ./start.sh --prune
+```
+
+**Warning:** `--prune` deletes all stopped containers, including other projects' containers and data in their writable layers, without another confirmation. It does not prune volumes, images, networks or build cache. Running containers are not pruned. Omit this option to leave other containers alone.
+
+Use `bash ./start.sh --help` for usage. You can combine options, for example `HOST_PORT=8083 bash ./start.sh --prune`.
 
 ### `./restart.sh`
 Restarts the `stock_predictor` container. Use this if you want to restart the application without rebuilding the image.
@@ -152,8 +174,15 @@ Refreshes saved forecasts inside the running `stock_predictor` container. It reu
 It accepts the same options as the Docker preload command above.
 
 ### `./test.sh`
-Executes the unit test suite inside the running container using `pytest`. Note that unit tests are also automatically executed inside Docker as a pre-build gate during `docker build` (in `./start.sh`).
+Runs `pytest tests/ -v` inside the running `stock_predictor` container without requiring an interactive terminal. Extra arguments are passed to pytest, for example:
 
+```sh
+./test.sh -k cache
+```
+
+This is a quick check using the running app's code and installed dependencies. Use "Run tests in Docker" above for a fresh test image and a separate network-disabled test run. Tests also run as a step during image builds, unless Docker reuses that cached step.
+
+Restart, preload and test commands return a non-zero status if Docker or the command inside the container fails. Preload and tests require a running container; restart requires an existing one.
 
 ## Saved forecasts and settings
 
