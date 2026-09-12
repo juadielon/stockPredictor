@@ -94,6 +94,17 @@ endblock %}
           {% endif %}
           <p class="small text-muted">Adjusted-price return estimate, not total investment return.
             Annualisation is a compounded extrapolation, not a separate forecast.</p>
+          {% if cache_info %}
+          <p class="small text-muted">Forecast saved: {{ cache_info['generated_at_label'] }}.
+            Data through: {{ cache_info['data_cutoff'] }}.
+            Model settings: {{ cache_info['parameters']['source'] }}.</p>
+          {% if cache_info['parameters']['source'] != 'tuned' %}
+          <p class="small text-muted">These settings have not been retuned for this forecast request.</p>
+          {% endif %}
+          {% if cache_info['stale'] %}
+          <div class="alert alert-warning" role="alert">{{ cache_info.get('warning', 'Showing an older saved forecast.') }}</div>
+          {% endif %}
+          {% endif %}
           {% if days|int > params_info['periods'] %}
           <div class="alert alert-warning py-2">
             <i class="bi bi-exclamation-triangle me-2"></i> {{ days }} days requested, but limited to {{

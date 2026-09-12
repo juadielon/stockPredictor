@@ -1,3 +1,3 @@
-#! /usr/bin/env bash
-curl -s 'http://localhost/preload' &
-docker logs -f stock_predictor 2>&1 | grep -v INFO
+#!/usr/bin/env bash
+set -eu
+exec docker exec stock_predictor flask --app app preload "$@"

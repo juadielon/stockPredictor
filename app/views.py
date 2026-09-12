@@ -25,6 +25,10 @@ def ticker():
             'home.html', form=form,
             error='Unable to forecast this ticker and period. Check the ticker, available history and trading dates.'
         ), 422
+    except Exception:
+        app.logger.exception('Forecast unavailable for %s', form.ticker.data)
+        return render_template('home.html', form=form,
+                               error='Forecast temporarily unavailable. Please try again later.'), 503
 
     return render_template(
         'results.html',
@@ -37,13 +41,10 @@ def ticker():
         forecast = forecast_info['forecast'].itertuples(),
         performance = forecast_info['performance'].itertuples(),
         returns = forecast_info['returns'],
-        fig_paths = forecast_info['fig_paths']
+        fig_paths = forecast_info['fig_paths'],
+        cache_info = forecast_info.get('cache_info')
     )
 
 @app.route('/preload')
 def preload():
-    """
-    Read previously requested tickers and cache them
-    """
-    StockPredictor().preload()
-    return 'Working ... Check the container logs (docker logs -f stock_predictor)'
+    return 'Preload has moved to the command line. Run ./preload.sh from the project folder.', 410
