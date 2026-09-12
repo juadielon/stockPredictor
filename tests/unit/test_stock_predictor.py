@@ -12,7 +12,7 @@ class TestStockPredictorUnit:
     """Unit tests for StockPredictor business logic without external network dependencies."""
 
     @patch('app.stock_predictor.yf.Ticker')
-    @patch('app.stock_predictor.FanoutCache')
+    @patch('app.stock_predictor.ForecastCache')
     def test_restrict_max_periods_caps_at_36_percent(self, mock_cache, mock_ticker, sample_stock_info):
         """Forecast period should be capped at 36% of historical data length."""
         with patch.object(StockPredictor, 'prime_cache'):
@@ -27,7 +27,7 @@ class TestStockPredictorUnit:
             assert uncapped == 50
 
     @patch('app.stock_predictor.yf.Ticker')
-    @patch('app.stock_predictor.FanoutCache')
+    @patch('app.stock_predictor.ForecastCache')
     def test_get_stock_info_parses_yfinance_data(self, mock_cache, mock_ticker_cls, sample_historical_data):
         """get_stock_info extracts current price, dividends, and history correctly."""
         mock_yfinance = MagicMock()
@@ -60,7 +60,7 @@ class TestStockPredictorUnit:
         """Stocks should remove weekend days whereas 24/7 crypto preserves all 7 days."""
         # For an ASX ticker (.ax), weekdays only
         predictor_asx = StockPredictor.__new__(StockPredictor)
-        predictor_asx.ticker = 'cba.ax'
+        predictor_asx.ticker = 'ndq.ax'
         predictor_asx.periods = 14
         predictor_asx.stock_info = sample_stock_info
 
@@ -78,7 +78,7 @@ class TestStockPredictorUnit:
             future_weekdays = res_asx['forecast']['ds'].dt.dayofweek
             assert all(day < 5 for day in future_weekdays)
 
-    @pytest.mark.parametrize('ticker', ['cba.ax', 'btc-usd'])
+    @pytest.mark.parametrize('ticker', ['ndq.ax', 'btc-usd'])
     def test_forecast_dates_follow_local_origin(self, ticker):
         predictor = StockPredictor.__new__(StockPredictor)
         predictor.ticker = ticker
@@ -108,7 +108,7 @@ class TestStockPredictorUnit:
     ])
     def test_asx_holiday_endpoints(self, periods, expected):
         predictor = StockPredictor.__new__(StockPredictor)
-        predictor.ticker = 'CBA.AX'
+        predictor.ticker = 'NDQ.AX'
         predictor.periods = periods
         predictor.stock_info = {'historical_data': pd.DataFrame(
             {'Close': [99.0, 100.0]},
@@ -128,7 +128,7 @@ class TestStockPredictorUnit:
         assert result['params_info']['weekday_periods'] == 3
         assert result['params_info']['requested_endpoint'] == pd.Timestamp('2026-12-24') + pd.Timedelta(days=periods)
 
-    @pytest.mark.parametrize('ticker', ['cba.ax', 'btc-usd'])
+    @pytest.mark.parametrize('ticker', ['ndq.ax', 'btc-usd'])
     def test_real_prophet_forecast_smoke(self, ticker):
         predictor = StockPredictor.__new__(StockPredictor)
         predictor.ticker = ticker
@@ -159,10 +159,10 @@ class TestStockPredictorUnit:
 
     @pytest.mark.parametrize('periods', ['abc', 0, -1, 1.5, 731, True])
     def test_invalid_horizon_rejected_before_io(self, periods):
-        with patch('app.stock_predictor.FanoutCache') as cache:
+        with patch('app.stock_predictor.ForecastCache') as cache:
             with patch('app.stock_predictor.yf.Ticker') as ticker:
                 with pytest.raises(ValueError, match='integer between 1 and 730'):
-                    StockPredictor('cba.ax', periods)
+                    StockPredictor('ndq.ax', periods)
                 cache.assert_not_called()
                 ticker.assert_not_called()
 
@@ -182,7 +182,7 @@ class TestStockPredictorUnit:
     def test_get_market_country(self):
         """Verify country mapping based on ticker suffix and exchange."""
         p_asx = StockPredictor.__new__(StockPredictor)
-        p_asx.ticker = 'cba.ax'
+        p_asx.ticker = 'ndq.ax'
         assert p_asx.get_market_country() == 'AU'
 
         p_crypto = StockPredictor.__new__(StockPredictor)

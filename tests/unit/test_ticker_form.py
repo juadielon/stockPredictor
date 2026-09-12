@@ -26,10 +26,10 @@ def test_ticker_form_invalid_days(days):
         assert 'days' in form.errors
 
 def test_ticker_form_normalises_ticker():
-    with app.test_request_context(method='POST', data={'ticker': '  CBA.AX  ', 'days': '30'}):
+    with app.test_request_context(method='POST', data={'ticker': '  NDQ.AX  ', 'days': '30'}):
         form = TickerForm()
         assert form.validate() is True
-        assert form.ticker.data == 'cba.ax'
+        assert form.ticker.data == 'ndq.ax'
 
 def test_ticker_form_missing_ticker():
     """Verify that missing ticker raises a validation error."""

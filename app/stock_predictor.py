@@ -5,7 +5,10 @@ from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 from datetime import datetime
 import numpy as np
-from diskcache import FanoutCache
+from app.forecast_cache import ForecastCache
+from filelock import Timeout
+import hashlib
+import logging
 
 import os.path
 import json
@@ -15,50 +18,65 @@ import math
 import plotly.graph_objs as go
 
 class StockPredictor:
-    def __init__(self, ticker='', periods=365):
+    def __init__(self, ticker='', periods=365, *, refresh=False, retune=False,
+                 cache_directory='./tmp/forecasts-v2',
+                 ticker_file='./tmp/tickers_change_point_prior_scale.json'):
         self.ticker = ticker.strip().lower()
         periods = self.validate_periods(periods)
-
-        self.cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
-        self.cache.clear()
-        self.cache_expire = 60 * 60 * 12 # 12 hours
-
-        self.cache_obj_file_path = './tmp/tickers_change_point_prior_scale.json'
+        self.cache = ForecastCache(cache_directory)
+        self.cache_obj_file_path = ticker_file
         self.cache_obj = []
-        self.prime_cache()
+        try:
+            self.prime_cache()
+            if self.ticker:
+                self.load_forecast(periods, refresh=refresh, retune=retune)
+        except Exception:
+            self.cache.close()
+            raise
+        if self.ticker:
+            self.cache.close()
 
-        if ticker:
-            self.stock_info = self.get_stock_info()
-            self.stock_info['now'] = datetime.now()
-
-            self.periods = self.restrict_max_periods(periods)
-
-            self.forecaster()
-
-    def preload(self, periods=365):
-        """
-        Read previously requested tickers, make forecast on all of them and set cache
-        """
-
-        if not os.path.isfile(self.cache_obj_file_path):
-            print('File ' + self.cache_obj_file_path + ' was not found')
+    def load_forecast(self, periods, *, refresh=False, retune=False, allow_stale=True):
+        periods = self.validate_periods(periods)
+        self.requested_periods = periods
+        cached = self.cache.result(self.ticker, periods)
+        if cached is not None and not refresh and not retune:
+            self.result = cached
             return
+        try:
+            with self.cache.lock(self.ticker, periods):
+                self.stock_info = self.get_stock_info()
+                self.stock_info['now'] = datetime.now()
+                self.periods = self.restrict_max_periods(periods)
+                self.forecaster(retune=retune)
+        except Exception as error:
+            previous = self.cache.result(self.ticker, periods, allow_stale=True)
+            if allow_stale and previous is not None and not retune:
+                previous['cache_info']['stale'] = True
+                previous['cache_info']['warning'] = 'Refresh unavailable. Showing the last saved forecast.'
+                self.result = previous
+                logging.getLogger(__name__).warning('Refresh failed for %s', self.ticker, exc_info=True)
+                return
+            if isinstance(error, Timeout):
+                raise ValueError('A forecast for this ticker and period is already running.') from error
+            raise
 
-        with open(self.cache_obj_file_path, 'r', encoding='utf-8') as json_file:
-            tickers = json.load(json_file)
-
-        for index in range(len(tickers)):
-            self.cache.clear()
-            self.cache_obj = []
-
-            self.ticker = tickers[index]['ticker']
-            print('Forecasting ' + self.ticker)
-            self.stock_info = self.get_stock_info()
-            self.stock_info['now'] = datetime.now()
-
-            self.periods = self.restrict_max_periods(periods)
-
-            self.forecaster()
+    def preload(self, periods=365, *, retune=False, tickers=None):
+        periods = self.validate_periods(periods)
+        tickers = tickers if tickers is not None else self.cache.tickers(self.cache_obj_file_path)
+        summary = {'succeeded': [], 'failed': []}
+        with self.cache.lock('preload-batch', None):
+            for ticker in sorted({ticker.strip().lower() for ticker in tickers}):
+                self.ticker = ticker
+                try:
+                    self.load_forecast(periods, refresh=True, retune=retune, allow_stale=False)
+                    summary['succeeded'].append(ticker)
+                    print(f'{ticker}: refreshed', flush=True)
+                except Exception:
+                    summary['failed'].append(ticker)
+                    logging.getLogger(__name__).exception('Refresh failed for %s', ticker)
+                    print(f'{ticker}: failed; previous result retained', flush=True)
+        return summary
 
     def prime_cache(self):
         if not os.path.isfile(self.cache_obj_file_path):
@@ -68,34 +86,13 @@ class StockPredictor:
         with open(self.cache_obj_file_path, 'r', encoding='utf-8') as json_file:
             self.cache_obj = json.load(json_file)
 
-        print('self.cache_obj=', self.cache_obj)
-
-        for index in range(len(self.cache_obj)):
-            self.cache.set(
-                self.cache_obj[index]['ticker'] + '_best_params',
-                {'cps': self.cache_obj[index]['changepoint_prior_scale'], 'sps': self.cache_obj[index].get('seasonality_prior_scale', 10.0)},
-                expire=self.cache_expire
-            )
+        self.cache.import_legacy(self.cache_obj)
 
     def write_cache(self, changepoint_prior_scale, seasonality_prior_scale):
-        found = False
-
-        # Prepopulate self.cache_obj in case there are multiple concurrent runs
-        self.prime_cache()
-
-        for index in range(len(self.cache_obj)):
-            if self.cache_obj[index]['ticker'] == self.ticker:
-                found = True
-                self.cache_obj[index]['changepoint_prior_scale'] = changepoint_prior_scale
-                self.cache_obj[index]['seasonality_prior_scale'] = seasonality_prior_scale
-
-        if not found:
-            self.cache_obj.append({'ticker': self.ticker, 'changepoint_prior_scale': changepoint_prior_scale, 'seasonality_prior_scale': seasonality_prior_scale})
-
-        with open(self.cache_obj_file_path, 'w') as json_file:
-            #json.dump(self.cache_obj, json_file, indent=4)
-            # Compact format the json file
-            json_file.write(json.dumps(self.cache_obj).replace('[{', '[\n\t{').replace('}, ', '},\n\t').replace('}]', '}\n]'))
+        return self.cache.save_parameters(
+            self.ticker, self.requested_periods, changepoint_prior_scale,
+            seasonality_prior_scale, str(self.stock_info['historical_data'].index.max())
+        )
 
     def restrict_max_periods(self, periods):
         # Make sure the new number of periods to use is not bigger than 36% of the historical periods
@@ -115,7 +112,7 @@ class StockPredictor:
             raise ValueError('Forecast days must be an integer between 1 and 730.')
         return periods
 
-    def forecaster(self):
+    def forecaster(self, retune=False):
         """
         Forecast the given ticker/quote a number of days into the future from today
 
@@ -124,17 +121,13 @@ class StockPredictor:
         periods - is the number of days into the future to forecast
         """
 
-        cache_key = self.ticker + '_best_params'
-        if not cache_key in self.cache:
-            print('No optimal params (changepoint_prior_scale and seasonality_prior_scale) found in cache')
+        params = (self.cache.parameters(self.ticker, self.requested_periods)
+              or self.cache.parameters(self.ticker, None)
+              or {'cps': 0.05, 'sps': 10.0, 'source': 'default', 'tuned_at': None})
+        if retune:
+            print('Retuning model parameters for', self.ticker)
             optimal_forecast = self.make_forecast_finding_best_params()
             print('Results were for ticker', self.ticker)
-            self.write_cache(optimal_forecast['changepoint_prior_scale'], optimal_forecast['seasonality_prior_scale'])
-            self.cache.set(
-                cache_key,
-                {'cps': optimal_forecast['changepoint_prior_scale'], 'sps': optimal_forecast['seasonality_prior_scale']},
-                expire=self.cache_expire
-            )
 
             # Calculate deltas
             delta = optimal_forecast['forecast_info']['forecast']['yhat'].pct_change()
@@ -151,8 +144,7 @@ class StockPredictor:
                 'performance': optimal_forecast['diagnostics']['df_performance']
             }
         else:
-            print('Using old params (changepoint_prior_scale and seasonality_prior_scale) found in cache')
-            params = self.cache.get(cache_key)
+            print('Using model parameters from', params['source'])
             changepoint_prior_scale = params['cps']
             seasonality_prior_scale = params['sps']
 
@@ -182,7 +174,20 @@ class StockPredictor:
         result['stock_info'] = self.stock_info
         result['fig_paths'] = fig_paths
         result['returns'] = self.calculate_returns(result['forecast'], result['params_info'])
-
+        history_hash = pd.util.hash_pandas_object(self.stock_info['historical_data'], index=True)
+        result['cache_info'] = {
+            'data_cutoff': str(self.stock_info['historical_data'].index.max()),
+            'data_fingerprint': hashlib.sha256(history_hash.values.tobytes()).hexdigest(),
+        }
+        with self.cache.store.transact():
+            if retune:
+                params = self.write_cache(
+                    optimal_forecast['changepoint_prior_scale'],
+                    optimal_forecast['seasonality_prior_scale']
+                )
+            result['cache_info']['parameters'] = params
+            self.cache.save_result(self.ticker, self.requested_periods, result)
+            self.cache.remember_ticker(self.ticker)
         self.result = result
 
     def calculate_returns(self, forecast, params_info):
@@ -842,7 +847,7 @@ class StockPredictor:
         initial = str(initial_days) + ' days'
         print('initial', initial)
 
-        df_cross_validation = cross_validation(model, horizon=horizon, initial=initial, parallel='processes')
+        df_cross_validation = cross_validation(model, horizon=horizon, initial=initial, parallel=None)
 
         df_performance = performance_metrics(df_cross_validation)
         # print(df_performance)
