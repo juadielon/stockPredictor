@@ -4,6 +4,8 @@ Time series analysis to predict future stock prices.
 
 ## How forecasts work
 
+Forecasts use Prophet, a statistical time-series model originally developed at Facebook. It fits trends and seasonal patterns to historical prices. It is not a chatbot or generative AI model, and it does not guarantee accurate returns.
+
 - Enter 1 to 730 calendar days. The app may shorten this using its existing limit of roughly 36% of the available historical records. That limit does not guarantee accuracy.
 - Predictions start after the last date in the price history, not necessarily today. For example, seven days after a Friday ends the following Friday.
 - ASX forecasts skip weekends and exchange holidays. Recognised crypto tickers include every day. Other shares currently skip weekends only.
