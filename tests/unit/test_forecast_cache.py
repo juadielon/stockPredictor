@@ -1,4 +1,5 @@
 from unittest.mock import patch
+import json
 
 import pandas as pd
 import pytest
@@ -194,3 +195,113 @@ def test_expired_parameters_use_defaults_without_retuning(tmp_path, sample_stock
                     assert predictor.result['cache_info']['parameters']['source'] == 'default'
                     tune.assert_not_called()
     predictor.cache.close()
+
+
+def test_retune_saves_each_improvement_before_next_candidate(tmp_path):
+    path = tmp_path / 'tickers.json'
+    original = [{'ticker': ' NDQ.AX ', 'note': 'keep'}, {'ticker': 'btc-aud', 'custom': 7}]
+    path.write_text(json.dumps(original))
+    predictor = StockPredictor(cache_directory=tmp_path / 'cache', ticker_file=str(path))
+    predictor.ticker = 'ndq.ax'
+    predictor.stock_info = {'historical_data': pd.DataFrame(index=range(100))}
+    snapshots = []
+
+    def forecast(cps, sps):
+        snapshots.append(json.loads(path.read_text()))
+        return {'params_info': {}, 'model': None}
+
+    diagnostics = [{'df_performance': pd.DataFrame({'mape': [score]})}
+                   for score in [0.4, 0.2, 0.2, 0.3]]
+    try:
+        with patch('app.stock_predictor.np.arange', return_value=[0.01]), \
+             patch.object(predictor, 'make_forecast', side_effect=forecast), \
+             patch.object(predictor, 'diagnose_model', side_effect=diagnostics), \
+             patch.object(predictor, 'save_tuning_progress', wraps=predictor.save_tuning_progress) as save:
+            result = predictor.make_forecast_finding_best_params()
+        assert save.call_count == 2
+        assert snapshots[0] == original
+        assert snapshots[1][0]['seasonality_prior_scale'] == 0.1
+        assert snapshots[2][0]['seasonality_prior_scale'] == 1.0
+        assert snapshots[3] == snapshots[2]
+        saved = json.loads(path.read_text())
+        assert saved == snapshots[2]
+        assert saved[0]['changepoint_prior_scale'] == 0.01
+        assert saved[0]['note'] == 'keep'
+        assert saved[1] == original[1]
+        assert result['mape'] == 0.2
+        assert predictor.cache.parameters('ndq.ax', 90) is None
+    finally:
+        predictor.cache.close()
+
+
+def test_retune_progress_survives_later_candidate_failure(tmp_path):
+    path = tmp_path / 'tickers.json'
+    predictor = StockPredictor(cache_directory=tmp_path / 'cache', ticker_file=str(path))
+    predictor.ticker = 'ndq.ax'
+    predictor.stock_info = {'historical_data': pd.DataFrame(index=range(100))}
+    try:
+        with patch('app.stock_predictor.np.arange', return_value=[0.01]), \
+             patch.object(predictor, 'make_forecast', return_value={'params_info': {}, 'model': None}), \
+             patch.object(predictor, 'diagnose_model', side_effect=[
+                 {'df_performance': pd.DataFrame({'mape': [0.2]})}, RuntimeError('interrupted')]):
+            with pytest.raises(RuntimeError, match='interrupted'):
+                predictor.make_forecast_finding_best_params()
+        assert json.loads(path.read_text()) == [
+            {'ticker': 'ndq.ax', 'changepoint_prior_scale': 0.01, 'seasonality_prior_scale': 0.1}]
+    finally:
+        predictor.cache.close()
+
+
+def test_tuning_progress_failed_replace_preserves_file(tmp_path):
+    path = tmp_path / 'tickers.json'
+    original = '[{"ticker": "ndq.ax", "changepoint_prior_scale": 0.05}]'
+    path.write_text(original)
+    predictor = StockPredictor(cache_directory=tmp_path / 'cache', ticker_file=str(path))
+    predictor.ticker = 'ndq.ax'
+    try:
+        with patch('app.stock_predictor.os.replace', side_effect=OSError('write failed')):
+            with pytest.raises(OSError, match='write failed'):
+                predictor.save_tuning_progress(0.1, 1.0)
+        assert path.read_text() == original
+        assert not list(tmp_path.glob('.ticker-settings-*'))
+    finally:
+        predictor.cache.close()
+
+
+def test_retune_invalid_scores_leave_json_unchanged(tmp_path):
+    path = tmp_path / 'tickers.json'
+    original = '[{"ticker": "ndq.ax"}]'
+    path.write_text(original)
+    predictor = StockPredictor(cache_directory=tmp_path / 'cache', ticker_file=str(path))
+    predictor.ticker = 'ndq.ax'
+    predictor.stock_info = {'historical_data': pd.DataFrame(index=range(100))}
+    try:
+        with patch('app.stock_predictor.np.arange', return_value=[0.01]), \
+             patch.object(predictor, 'make_forecast', return_value={'params_info': {}, 'model': None}), \
+             patch.object(predictor, 'diagnose_model', side_effect=[
+                 {'df_performance': pd.DataFrame({'mape': [score]})}
+                 for score in [float('nan'), float('inf'), -float('inf'), float('nan')]]):
+            with pytest.raises(ValueError, match='No finite validation error'):
+                predictor.make_forecast_finding_best_params()
+        assert path.read_text() == original
+    finally:
+        predictor.cache.close()
+
+
+def test_tuning_progress_rereads_other_tickers_and_rejects_invalid_json(tmp_path):
+    path = tmp_path / 'tickers.json'
+    predictor = StockPredictor(cache_directory=tmp_path / 'cache', ticker_file=str(path))
+    predictor.ticker = 'ndq.ax'
+    try:
+        predictor.save_tuning_progress(0.01, 0.1)
+        other = {'ticker': 'btc-aud', 'note': 'added since last save'}
+        entries = json.loads(path.read_text()) + [other]
+        path.write_text(json.dumps(entries))
+        predictor.save_tuning_progress(0.02, 1.0)
+        assert json.loads(path.read_text())[1] == other
+        path.write_text('{unfinished')
+        with pytest.raises(json.JSONDecodeError):
+            predictor.save_tuning_progress(0.03, 10.0)
+        assert path.read_text() == '{unfinished'
+    finally:
+        predictor.cache.close()

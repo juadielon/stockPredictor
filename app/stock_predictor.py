@@ -6,12 +6,13 @@ from prophet.diagnostics import cross_validation, performance_metrics
 from datetime import datetime
 import numpy as np
 from app.forecast_cache import ForecastCache
-from filelock import Timeout
+from filelock import FileLock, Timeout
 import hashlib
 import logging
 
 import os.path
 import json
+import tempfile
 
 import time
 import math
@@ -349,6 +350,46 @@ class StockPredictor:
         print('best changepoint_prior_scale=', result['changepoint_prior_scale'])
         return result
 
+    def save_tuning_progress(self, changepoint_prior_scale, seasonality_prior_scale):
+        path = os.path.realpath(self.cache_obj_file_path)
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        with FileLock(path + '.lock', timeout=10):
+            entries = []
+            if os.path.isfile(path):
+                with open(path, encoding='utf-8') as source:
+                    entries = json.load(source)
+            if not isinstance(entries, list) or any(
+                not isinstance(entry, dict) or not isinstance(entry.get('ticker'), str)
+                for entry in entries
+            ):
+                raise ValueError('The ticker file must contain a list of entries with ticker symbols.')
+            settings = {
+                'changepoint_prior_scale': float(changepoint_prior_scale),
+                'seasonality_prior_scale': float(seasonality_prior_scale),
+            }
+            matched = False
+            for entry in entries:
+                if entry['ticker'].strip().lower() == self.ticker.strip().lower():
+                    entry.update(settings)
+                    matched = True
+            if not matched:
+                entries.append({'ticker': self.ticker.strip().lower(), **settings})
+            temporary_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=directory,
+                                                 prefix='.ticker-settings-', suffix='.json',
+                                                 delete=False) as destination:
+                    temporary_path = destination.name
+                    json.dump(entries, destination, indent=4, allow_nan=False)
+                    destination.write('\n')
+                    destination.flush()
+                    os.fsync(destination.fileno())
+                os.replace(temporary_path, path)
+            finally:
+                if temporary_path is not None and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
+
     def make_forecast_finding_best_params(self):
         """
         Find the best changepoint_prior_scale and seasonality_prior_scale using grid search.
@@ -384,7 +425,7 @@ class StockPredictor:
         changepoint_scales = np.arange(0.01, 0.51, 0.01) # From 0.01 to 0.5 with a 0.01 step
         seasonality_scales = [0.1, 1.0, 10.0, 50.0]  # Common values
 
-        result_min_mape = {'mape': 9999999}
+        result_min_mape = {'mape': float('inf')}
 
         for cps in changepoint_scales:
             for sps in seasonality_scales:
@@ -396,7 +437,9 @@ class StockPredictor:
 
                 print(self.ticker + f' - cps={cps}, sps={sps}, mape={mape}')
 
-                if mape < result_min_mape['mape']:
+                if math.isfinite(mape) and mape < result_min_mape['mape']:
+                    self.save_tuning_progress(cps, sps)
+                    print(f'{self.ticker}: saved best settings so far to {self.cache_obj_file_path}', flush=True)
                     result_min_mape = {
                         'forecast_info': forecast_info,
                         'diagnostics': diagnostics,
@@ -405,6 +448,8 @@ class StockPredictor:
                         'mape': mape
                     }
 
+        if not math.isfinite(result_min_mape['mape']):
+            raise ValueError('No finite validation error was found during retuning.')
         print(f'Best: cps={result_min_mape["changepoint_prior_scale"]}, sps={result_min_mape["seasonality_prior_scale"]}, mape={result_min_mape["mape"]}')
         return result_min_mape
 
