@@ -60,3 +60,27 @@ footer {
     text-align: center;
     border-top: 1px solid #dee2e6;
 }
+
+#forecast-submit {
+    min-height: 4rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#forecast-spinner[hidden] {
+    display: none;
+}
+
+#forecast-status {
+    min-height: 3rem;
+}
+
+#result-identity {
+    letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #forecast-spinner {
+        animation: none;
+    }
+}

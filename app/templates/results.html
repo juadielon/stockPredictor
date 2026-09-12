@@ -1,20 +1,30 @@
 {% extends "base.html" %}
 
-{% block title %}Stock Predictor - {{ stock_info['symbol']}} Results | {{ (returns['annualised']*100)|round(2) }}%{%
+{% set requested_ticker = ticker|upper %}
+{% set display_name = (stock_info.get('longName') or '')|trim or (stock_info.get('shortName') or '')|trim %}
+{% set description = (stock_info.get('longBusinessSummary') or '')|trim or (stock_info.get('description') or '')|trim %}
+{% set provider_symbol = (stock_info.get('symbol') or '')|trim|upper %}
+{% set asset_type = (stock_info.get('legalType') or '')|trim or (stock_info.get('quoteType') or '')|trim %}
+{% set asset_type = {'ETF': 'Exchange Traded Fund', 'EQUITY': 'Equity', 'CRYPTOCURRENCY': 'Cryptocurrency', 'MUTUALFUND': 'Mutual Fund', 'INDEX': 'Index'}.get(asset_type, asset_type) %}
+
+{% block title %}Stock Predictor - {{ requested_ticker }} Results | {{ (returns['annualised']*100)|round(2) }}%{%
 endblock %}
 
 {% block content %}
 <div class="container mt-5">
   <div class="row align-items-center mb-4">
     <div class="col-md-9">
-      <h1 class="fw-bold mb-2">{{ stock_info['longName'] }} <span class="text-muted fw-light">({{
-          stock_info['symbol']}})</span></h1>
-      <p class="text-secondary mb-0">{{ stock_info['longBusinessSummary'] }}</p>
+      <h1 class="h2 fw-bold mb-2 text-break" id="result-identity">{{ requested_ticker }}{% if display_name and display_name|upper != requested_ticker %}
+        <span class="d-block fs-4 text-secondary fw-normal mt-2">{{ display_name }}</span>{% endif %}</h1>
+      {% if provider_symbol and provider_symbol != requested_ticker %}
+      <p class="text-secondary text-break">Provider symbol: {{ provider_symbol }}</p>
+      {% endif %}
+      <p class="text-secondary mb-0 text-break">{{ description or 'Description unavailable from the data provider.' }}</p>
     </div>
-    <div class="col-md-3 text-md-end mt-3 mt-md-0">
-      <span class="badge bg-light text-dark border p-2">{{ stock_info['exchange']}}</span>
-      <span class="badge bg-light text-dark border p-2">{{ stock_info['currency']}}</span>
-      <span class="badge bg-primary p-2">{{ stock_info['legalType'] }}</span>
+    <div class="col-md-3 text-md-end mt-3 mt-md-0" id="instrument-metadata">
+      {% for value in [(stock_info.get('exchange') or '')|trim, (stock_info.get('currency') or '')|trim, asset_type] %}
+      {% if value %}<span class="badge bg-light text-dark border p-2 text-wrap text-break">{{ value }}</span>{% endif %}
+      {% endfor %}
     </div>
   </div>
 

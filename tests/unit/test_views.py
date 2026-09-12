@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pandas as pd
 
 def test_home_page_get(client):
@@ -8,11 +8,17 @@ def test_home_page_get(client):
     assert response.status_code == 200
     assert b'Stock Price Prediction' in response.data
     assert b'Ticker Symbol' in response.data
+    assert b'Price forecasts using Prophet and historical market data.' in response.data
+    assert b'AI-powered' not in response.data
+    assert b'id="forecast-form" aria-busy="false"' in response.data
+    assert b'role="status" aria-live="polite"' in response.data
+    assert b'id="forecast-spinner"' in response.data
 
 def test_ticker_post_invalid_shows_errors(client):
     response = client.post('/ticker', data={}, follow_redirects=False)
     assert response.status_code == 400
     assert b'This field is required' in response.data
+    assert b'aria-busy="false"' in response.data
 
 @patch('app.views.StockPredictor')
 def test_invalid_horizon_does_not_forecast(mock_predictor_cls, client):
@@ -27,11 +33,8 @@ def test_forecast_failure_shows_controlled_error(mock_predictor_cls, client):
     assert b'Unable to forecast this ticker and period' in response.data
     mock_predictor_cls.assert_called_once_with('ndq.ax', 1)
 
-@pytest.mark.parametrize('stale', [False, True])
-@patch('app.views.StockPredictor')
-def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale):
-    """Submitting a valid ticker invokes StockPredictor and displays results."""
-    mock_instance = MagicMock()
+@pytest.fixture
+def forecast_result():
     
     forecast_df = pd.DataFrame({
         'ds': [pd.Timestamp('2026-01-01')],
@@ -46,7 +49,7 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale):
         'mape': [0.05]
     })
     
-    mock_instance.result = {
+    return {
         'stock_info': {
             'info': {
                 'symbol': 'AAPL',
@@ -78,7 +81,7 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale):
             'generated_at_label': '12/09/2026 00:00 UTC',
             'data_cutoff': '2026-09-11',
             'parameters': {'source': 'legacy'},
-            'stale': stale,
+            'stale': False,
             'warning': 'Refresh unavailable. Showing the last saved forecast.',
         },
         'performance': performance_df,
@@ -92,7 +95,11 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale):
             'plotly_mape': '{}'
         }
     }
-    mock_predictor_cls.return_value = mock_instance
+@pytest.mark.parametrize('stale', [False, True])
+@patch('app.views.StockPredictor')
+def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale, forecast_result):
+    forecast_result['cache_info']['stale'] = stale
+    mock_predictor_cls.return_value.result = forecast_result
 
     response = client.post('/ticker', data={'ticker': 'AAPL', 'days': '365'})
     assert response.status_code == 200
@@ -104,6 +111,49 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client, stale):
     assert b'Forecast saved: 12/09/2026 00:00 UTC' in response.data
     assert b'Model settings: legacy' in response.data
     assert (b'Refresh unavailable' in response.data) == stale
+
+@pytest.mark.parametrize('stale', [False, True])
+@pytest.mark.parametrize('searched_ticker,metadata,expected_name,expected_description,expected_type', [
+    ('ndq.ax', {'shortName': 'Nasdaq 100 ETF', 'description': 'Tracks the Nasdaq 100.', 'quoteType': 'ETF'},
+     'Nasdaq 100 ETF', 'Tracks the Nasdaq 100.', 'Exchange Traded Fund'),
+    ('btc-usd', {'shortName': 'Bitcoin USD', 'quoteType': 'CRYPTOCURRENCY'},
+     'Bitcoin USD', 'Description unavailable from the data provider.', 'Cryptocurrency'),
+    ('ndq.ax', {}, '', 'Description unavailable from the data provider.', ''),
+    ('ndq.ax', dict.fromkeys(['longName', 'shortName', 'longBusinessSummary', 'description', 'symbol', 'exchange', 'currency', 'legalType', 'quoteType']),
+     '', 'Description unavailable from the data provider.', ''),
+    ('ndq.ax', {'longName': ' ', 'shortName': '', 'longBusinessSummary': '\t', 'exchange': ' ', 'currency': '', 'legalType': ' '},
+     '', 'Description unavailable from the data provider.', ''),
+    ('ndq.ax', {'longName': ' ', 'shortName': 'Fund <name>', 'longBusinessSummary': ' ', 'description': '<script>bad()</script>', 'symbol': 'OTHER'},
+     'Fund &lt;name&gt;', '&lt;script&gt;bad()&lt;/script&gt;', ''),
+])
+@patch('app.views.StockPredictor')
+def test_result_identity_fallbacks(mock_predictor_cls, client, forecast_result, stale,
+                                  searched_ticker, metadata, expected_name,
+                                  expected_description, expected_type):
+    info = forecast_result['stock_info']['info']
+    for field in ['symbol', 'longName', 'longBusinessSummary', 'exchange', 'currency', 'legalType']:
+        info.pop(field)
+    info.update(metadata)
+    forecast_result['cache_info']['stale'] = stale
+    mock_predictor_cls.return_value.result = forecast_result
+
+    response = client.post('/ticker', data={'ticker': searched_ticker, 'days': '365'})
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    heading = html.split('id="result-identity">', 1)[1].split('</h1>', 1)[0]
+    badges = html.split('id="instrument-metadata">', 1)[1].split('</div>', 1)[0]
+    assert searched_ticker.upper() in heading
+    assert f'Stock Predictor - {searched_ticker.upper()} Results' in html
+    assert expected_name in heading
+    assert expected_description in html
+    assert 'None' not in heading + badges
+    assert '<script>bad()</script>' not in html
+    if expected_type:
+        assert expected_type in badges
+    else:
+        assert '<span' not in badges
+    if metadata.get('symbol') == 'OTHER':
+        assert 'Provider symbol: OTHER' in html
 
 @patch('app.views.StockPredictor')
 def test_preload_endpoint(mock_predictor_cls, client):
