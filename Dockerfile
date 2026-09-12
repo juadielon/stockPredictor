@@ -17,7 +17,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 RUN pip install --upgrade pip \
     && pip install flask-wtf yfinance \
     && pip install prophet \
-    && pip install diskcache plotly \
+    && pip install diskcache plotly pandas_market_calendars==5.4.0 \
     && pip install gunicorn \
     && pip install pytest pytest-mock
 

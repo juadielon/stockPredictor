@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import pandas_market_calendars as market_calendars
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 from datetime import datetime
@@ -15,7 +16,8 @@ import plotly.graph_objs as go
 
 class StockPredictor:
     def __init__(self, ticker='', periods=365):
-        self.ticker = ticker
+        self.ticker = ticker.strip().lower()
+        periods = self.validate_periods(periods)
 
         self.cache = FanoutCache(directory='./tmp', timeout=20, shards=4)
         self.cache.clear()
@@ -97,12 +99,21 @@ class StockPredictor:
 
     def restrict_max_periods(self, periods):
         # Make sure the new number of periods to use is not bigger than 36% of the historical periods
-        periods = int(periods)
+        periods = self.validate_periods(periods)
         historical_periods_count = len(self.stock_info['historical_data'])
         # Estimate the number of maximum periods allowed. This was derived by trial and error
         max_periods = int(historical_periods_count * 0.36) + 1
 
         return max_periods if periods > max_periods else periods
+
+    @staticmethod
+    def validate_periods(periods):
+        if isinstance(periods, bool) or not str(periods).strip().isdigit():
+            raise ValueError('Forecast days must be an integer between 1 and 730.')
+        periods = int(periods)
+        if not 1 <= periods <= 730:
+            raise ValueError('Forecast days must be an integer between 1 and 730.')
+        return periods
 
     def forecaster(self):
         """
@@ -170,11 +181,25 @@ class StockPredictor:
             }
         result['stock_info'] = self.stock_info
         result['fig_paths'] = fig_paths
-        result['returns'] = {}
-        result['returns']['requested_period'] = (result['forecast'].tail(1)['yhat'].values[0] / result['stock_info']['info']['currentPrice']) -1
-        result['returns']['annualised'] = result['returns']['requested_period'] / result['params_info']['periods'] * 365
+        result['returns'] = self.calculate_returns(result['forecast'], result['params_info'])
 
         self.result = result
+
+    def calculate_returns(self, forecast, params_info):
+        origin_price = float(params_info['origin_price'])
+        endpoint_price = float(forecast['yhat'].iloc[-1])
+        elapsed_days = params_info['elapsed_days']
+        if (elapsed_days <= 0 or not math.isfinite(origin_price)
+                or not math.isfinite(endpoint_price) or origin_price <= 0 or endpoint_price <= 0):
+            raise ValueError('Returns require positive finite prices and a future forecast date.')
+        price_ratio = endpoint_price / origin_price
+        try:
+            annualised = math.expm1(math.log(price_ratio) * 365 / elapsed_days)
+        except (OverflowError, ValueError) as error:
+            raise ValueError('The forecast cannot be annualised reliably.') from error
+        if not math.isfinite(annualised):
+            raise ValueError('The forecast cannot be annualised reliably.')
+        return {'requested_period': price_ratio - 1, 'annualised': annualised}
 
     def get_market_country(self):
         """
@@ -225,7 +250,12 @@ class StockPredictor:
         stock_data = yf.Ticker(self.ticker)
 
         info = stock_data.info
-        info['currentPrice'] = stock_data.history('1d')['Close'].iloc[0]
+        latest_data = stock_data.history('1d', auto_adjust=False)
+        if latest_data.empty or 'Close' not in latest_data:
+            raise ValueError('No current closing price is available for this ticker.')
+        info['currentPrice'] = float(latest_data['Close'].iloc[-1])
+        if not math.isfinite(info['currentPrice']) or info['currentPrice'] <= 0:
+            raise ValueError('The current closing price must be positive and finite.')
         # info['longBusinessSummary'] = info['longBusinessSummary'].value.decode('utf-8','ignore').encode("utf-8")
         
         dividends = stock_data.dividends
@@ -659,9 +689,20 @@ class StockPredictor:
 
         # Prophet requires the dates (ds) and adjusted closing prices (y)
         # Create new data frame with the required data
+        self.periods = self.validate_periods(self.periods)
         df_historical_data = pd.DataFrame()
-        df_historical_data['ds'] = self.stock_info['historical_data'].index.values
+        if 'Close' not in self.stock_info['historical_data']:
+            raise ValueError('Historical closing prices are unavailable for this ticker.')
+        df_historical_data['ds'] = pd.DatetimeIndex(
+            self.stock_info['historical_data'].index
+        ).tz_localize(None).normalize()
         df_historical_data['y'] = self.stock_info['historical_data']['Close'].values
+        df_historical_data = df_historical_data.sort_values('ds').reset_index(drop=True)
+        if (len(df_historical_data) < 2 or df_historical_data['ds'].isna().any()
+                or df_historical_data['ds'].duplicated().any()
+                or not np.isfinite(df_historical_data['y']).all()
+                or (df_historical_data['y'] <= 0).any()):
+            raise ValueError('Historical data must contain distinct dates and positive finite closing prices.')
 
         # Set minimum posible value
         # df_historical_data['floor'] = 0
@@ -706,7 +747,9 @@ class StockPredictor:
 
         # Start forecast from the last historical date
         last_ds = df_historical_data['ds'].max()
-        total_future = pd.DataFrame({'ds': pd.date_range(start=last_ds, periods=self.periods, freq='D')})
+        total_future = pd.DataFrame({'ds': pd.date_range(
+            start=last_ds + pd.Timedelta(days=1), periods=self.periods, freq='D'
+        )})
 
         #total_future['floor'] = 0
         #total_future['cap'] = 1.2 * df_historical_data['y'].max()
@@ -718,8 +761,19 @@ class StockPredictor:
         if is_asx_ticker or market_country is not None:
             has_weekend_data = False  # Stock market behaviour
         else:
-            has_weekend_data = any(df_historical_data['ds'].dt.dayofweek >= 5)
-        if not has_weekend_data:
+            is_crypto = any(
+                self.ticker.lower().endswith(suffix)
+                for suffix in ('-usd', '-aud', '-eur', '-gbp')
+            )
+            has_weekend_data = is_crypto or any(df_historical_data['ds'].dt.dayofweek >= 5)
+        if market_country == 'AU':
+            calendar = market_calendars.get_calendar('ASX')
+            sessions = calendar.valid_days(
+                start_date=last_ds + pd.Timedelta(days=1),
+                end_date=last_ds + pd.Timedelta(days=self.periods)
+            ).tz_localize(None)
+            future_days = pd.DataFrame({'ds': sessions})
+        elif not has_weekend_data:
             # As the stock exchange is closed on weekends, remove weekends in the future
             future_days = total_future[total_future['ds'].dt.dayofweek < 5]
         else:
@@ -727,8 +781,9 @@ class StockPredictor:
             future_days = total_future
 
         # Recalculate number of available periods to display in case that some days were removed
-        future_weekdays_count = self.periods - \
-            (len(total_future) - len(future_days))
+        future_weekdays_count = len(future_days)
+        if future_weekdays_count == 0:
+            raise ValueError('No trading dates fall within the requested forecast period.')
 
         full_forecast = model.predict(future_days)
 
@@ -742,7 +797,7 @@ class StockPredictor:
 
         # Return requested period
         # forecast = full_forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(available_periods+1)
-        forecast = full_forecast.tail(future_weekdays_count+1)
+        forecast = full_forecast
 
         result = {
             'historical_data': df_historical_data,
@@ -754,6 +809,13 @@ class StockPredictor:
                 'periods': self.periods,
                 'historical_periods': len(self.stock_info['historical_data']),
                 'weekday_periods': future_weekdays_count,
+                'origin': last_ds,
+                'origin_price': float(df_historical_data.loc[
+                    df_historical_data['ds'].idxmax(), 'y'
+                ]),
+                'requested_endpoint': last_ds + pd.Timedelta(days=self.periods),
+                'forecast_endpoint': future_days['ds'].iloc[-1],
+                'elapsed_days': (future_days['ds'].iloc[-1] - last_ds).days,
                 'changepoint_prior_scale': changepoint_prior_scale,
                 'seasonality_prior_scale': seasonality_prior_scale
             }
