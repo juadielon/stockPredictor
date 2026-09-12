@@ -16,7 +16,20 @@ def test_ticker_form_valid():
         form = TickerForm()
         assert form.validate() is True
         assert form.ticker.data == 'aapl'
-        assert form.days.data == '365'
+        assert form.days.data == 365
+
+@pytest.mark.parametrize('days', ['abc', '0', '-1', '1.5', '731'])
+def test_ticker_form_invalid_days(days):
+    with app.test_request_context(method='POST', data={'ticker': 'aapl', 'days': days}):
+        form = TickerForm()
+        assert form.validate() is False
+        assert 'days' in form.errors
+
+def test_ticker_form_normalises_ticker():
+    with app.test_request_context(method='POST', data={'ticker': '  CBA.AX  ', 'days': '30'}):
+        form = TickerForm()
+        assert form.validate() is True
+        assert form.ticker.data == 'cba.ax'
 
 def test_ticker_form_missing_ticker():
     """Verify that missing ticker raises a validation error."""

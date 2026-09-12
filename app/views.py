@@ -1,4 +1,4 @@
-from flask import render_template, redirect
+from flask import render_template
 from app import app
 from app.ticker_form import TickerForm
 from app.stock_predictor import StockPredictor
@@ -15,9 +15,16 @@ def ticker():
     form = TickerForm()
 
     if not form.validate_on_submit():
-        return redirect('/')
+        return render_template('home.html', form=form), 400
 
-    forecast_info = StockPredictor(form.ticker.data, form.days.data).result
+    try:
+        forecast_info = StockPredictor(form.ticker.data, form.days.data).result
+    except ValueError:
+        app.logger.warning('Forecast rejected for %s', form.ticker.data, exc_info=True)
+        return render_template(
+            'home.html', form=form,
+            error='Unable to forecast this ticker and period. Check the ticker, available history and trading dates.'
+        ), 422
 
     return render_template(
         'results.html',

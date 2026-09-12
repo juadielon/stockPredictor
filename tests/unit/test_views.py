@@ -9,11 +9,23 @@ def test_home_page_get(client):
     assert b'Stock Price Prediction' in response.data
     assert b'Ticker Symbol' in response.data
 
-def test_ticker_post_invalid_redirects_home(client):
-    """Submitting empty or invalid form should redirect to home."""
+def test_ticker_post_invalid_shows_errors(client):
     response = client.post('/ticker', data={}, follow_redirects=False)
-    assert response.status_code == 302
-    assert response.headers['Location'] in ['/', 'http://localhost/']
+    assert response.status_code == 400
+    assert b'This field is required' in response.data
+
+@patch('app.views.StockPredictor')
+def test_invalid_horizon_does_not_forecast(mock_predictor_cls, client):
+    response = client.post('/ticker', data={'ticker': 'CBA.AX', 'days': '-1'})
+    assert response.status_code == 400
+    mock_predictor_cls.assert_not_called()
+
+@patch('app.views.StockPredictor', side_effect=ValueError('No trading dates'))
+def test_forecast_failure_shows_controlled_error(mock_predictor_cls, client):
+    response = client.post('/ticker', data={'ticker': 'CBA.AX', 'days': '1'})
+    assert response.status_code == 422
+    assert b'Unable to forecast this ticker and period' in response.data
+    mock_predictor_cls.assert_called_once_with('cba.ax', 1)
 
 @patch('app.views.StockPredictor')
 def test_ticker_post_valid_renders_results(mock_predictor_cls, client):
@@ -52,6 +64,9 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client):
         },
         'params_info': {
             'periods': 365,
+            'origin': pd.Timestamp('2025-01-01'),
+            'forecast_endpoint': pd.Timestamp('2026-01-01'),
+            'elapsed_days': 365,
             'historical_periods': 1000,
             'weekday_periods': 260,
             'changepoint_prior_scale': 0.05,
@@ -75,6 +90,9 @@ def test_ticker_post_valid_renders_results(mock_predictor_cls, client):
     assert response.status_code == 200
     assert b'Apple Inc.' in response.data
     assert b'AAPL' in response.data
+    assert b'Last observation: 01/01/2025' in response.data
+    assert b'Forecast endpoint: 01/01/2026' in response.data
+    assert b'Adjusted-price return estimate, not total investment return' in response.data
 
 @patch('app.views.StockPredictor')
 def test_preload_endpoint(mock_predictor_cls, client):
